@@ -1,0 +1,6 @@
+@PawraBackend_HostAddress = http://localhost:5232
+
+GET {{PawraBackend_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

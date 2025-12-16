@@ -1,0 +1,34 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.12.35514.174 d17.12
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PawraBackend", "PawraBackend\PawraBackend.csproj", "{59BDE0CA-5DF5-4895-BD3F-22AB8603D0F1}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Pawra.BLL", "Pawra.BLL\Pawra.BLL.csproj", "{66104FBF-D813-4C4F-9DD9-C94B78A1F288}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Pawra.DAL", "Pawra.DAL\Pawra.DAL.csproj", "{BF1A3034-34ED-4F81-90C3-C8D511CB2B87}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{59BDE0CA-5DF5-4895-BD3F-22AB8603D0F1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{59BDE0CA-5DF5-4895-BD3F-22AB8603D0F1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{59BDE0CA-5DF5-4895-BD3F-22AB8603D0F1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{59BDE0CA-5DF5-4895-BD3F-22AB8603D0F1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{66104FBF-D813-4C4F-9DD9-C94B78A1F288}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{66104FBF-D813-4C4F-9DD9-C94B78A1F288}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{66104FBF-D813-4C4F-9DD9-C94B78A1F288}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{66104FBF-D813-4C4F-9DD9-C94B78A1F288}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BF1A3034-34ED-4F81-90C3-C8D511CB2B87}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BF1A3034-34ED-4F81-90C3-C8D511CB2B87}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BF1A3034-34ED-4F81-90C3-C8D511CB2B87}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BF1A3034-34ED-4F81-90C3-C8D511CB2B87}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
