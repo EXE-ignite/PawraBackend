@@ -1,6 +1,6 @@
 ﻿namespace Pawra.DAL
 {
-    public class Class1
+    public class PawraDBContext
     {
 
     }
