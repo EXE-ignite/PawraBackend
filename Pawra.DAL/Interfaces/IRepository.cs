@@ -1,3 +1,5 @@
+using Pawra.DAL.Entities;
+
 namespace Pawra.DAL.Interfaces
 {
     public interface IRepository<T> where T : BaseEntity

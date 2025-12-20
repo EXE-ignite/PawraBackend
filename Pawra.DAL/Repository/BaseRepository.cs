@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Pawra.DAL.Entities;
 using Pawra.DAL.Interfaces;
 using System.Linq.Expressions;
 using System.Runtime.InteropServices;

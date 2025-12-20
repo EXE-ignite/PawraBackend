@@ -1,4 +1,4 @@
-﻿namespace Pawra.DAL
+﻿namespace Pawra.DAL.Entities
 {
     public abstract class BaseEntity
     {

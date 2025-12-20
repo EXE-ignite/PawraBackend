@@ -1,7 +1,7 @@
 ﻿using AutoMapper;
-using Pawra.DAL;
 using Pawra.DAL.Repository;
 using Pawra.BLL.Interfaces;
+using Pawra.DAL.Entities;
 
 namespace Pawra.BLL.Services
 {

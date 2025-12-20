@@ -1,6 +1,7 @@
 using Pawra.DAL.Interfaces;
 using Pawra.DAL.Repository;
 using Microsoft.EntityFrameworkCore.Storage;
+using Pawra.DAL.Entities;
 
 namespace Pawra.DAL.UnitOfWork
 {
