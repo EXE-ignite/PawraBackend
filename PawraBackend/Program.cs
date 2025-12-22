@@ -23,6 +23,16 @@ namespace PawraBackend
 
             var app = builder.Build();
 
+            // Auto-migrate database in development
+            if (app.Environment.IsDevelopment())
+            {
+                using (var scope = app.Services.CreateScope())
+                {
+                    var dbContext = scope.ServiceProvider.GetRequiredService<PawraDBContext>();
+                    dbContext.Database.Migrate();
+                }
+            }
+
             // Configure the HTTP request pipeline.
             if (app.Environment.IsDevelopment())
             {

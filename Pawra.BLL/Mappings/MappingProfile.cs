@@ -1,6 +1,4 @@
 ﻿using AutoMapper;
-using Inventory.BLL.DTOs;
-using Inventory.DLL.Entities;
 
 namespace Inventory.BLL.Mappings
 {
@@ -8,10 +6,10 @@ namespace Inventory.BLL.Mappings
     {
         public MappingProfile()
         {
-            CreateMap<InventoryDTO, InventoryEntity>();
-            CreateMap<InventoryEntity, InventoryDTO>();
-            CreateMap<UserDTO, UserEntity>();
-            CreateMap<UserEntity, UserDTO>();
+            //CreateMap<InventoryDTO, InventoryEntity>();
+            //CreateMap<InventoryEntity, InventoryDTO>();
+            //CreateMap<UserDTO, UserEntity>();
+            //CreateMap<UserEntity, UserDTO>();
         }
     }
 }

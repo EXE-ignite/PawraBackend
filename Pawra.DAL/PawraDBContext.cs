@@ -194,9 +194,9 @@ namespace Pawra.DAL
                 .WithMany(v => v.VaccinationRecords)
                 .HasForeignKey(vr => vr.VaccineId)
                 .OnDelete(DeleteBehavior.Restrict);
-data
-            modelBuilder.SeedAccountRoles(    }
-            );
+
+            // Seed data
+            modelBuilder.SeedAccountRoles();
         }
     }
 }
