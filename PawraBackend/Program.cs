@@ -52,8 +52,12 @@ namespace PawraBackend
 
             builder.Services.AddAuthorization();
 
+            // AutoMapper Configuration
+            builder.Services.AddAutoMapper(typeof(Pawra.BLL.Mappings.MappingProfile));
+
             // Register Services
             builder.Services.AddScoped<IAuthService, AuthService>();
+            builder.Services.AddScoped<IAccountRoleService, AccountRoleService>();
 
             // Swagger Configuration
             builder.Services.AddEndpointsApiExplorer();

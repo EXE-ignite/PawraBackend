@@ -1,3 +1,4 @@
+using AutoMapper;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
@@ -16,11 +17,13 @@ namespace Pawra.BLL.Service
     {
         private readonly PawraDBContext _context;
         private readonly IConfiguration _configuration;
+        private readonly IMapper _mapper;
 
-        public AuthService(PawraDBContext context, IConfiguration configuration)
+        public AuthService(PawraDBContext context, IConfiguration configuration, IMapper mapper)
         {
             _context = context;
             _configuration = configuration;
+            _mapper = mapper;
         }
 
         public async Task<LoginResponseDto> LoginAsync(LoginRequestDto request)
@@ -45,14 +48,11 @@ namespace Pawra.BLL.Service
             // Tạo JWT token
             var token = GenerateJwtToken(account);
 
-            return new LoginResponseDto
-            {
-                Token = token,
-                Email = account.Email,
-                FullName = account.FullName,
-                Role = account.Role.Name,
-                ExpiresAt = DateTime.UtcNow.AddHours(24)
-            };
+            var response = _mapper.Map<LoginResponseDto>(account);
+            response.Token = token;
+            response.ExpiresAt = DateTime.UtcNow.AddHours(24);
+
+            return response;
         }
 
         public async Task<LoginResponseDto> RegisterAsync(RegisterRequestDto request)
@@ -79,13 +79,9 @@ namespace Pawra.BLL.Service
             var passwordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
 
             // Tạo account mới
-            var newAccount = new Account
-            {
-                Email = request.Email,
-                PasswordHash = passwordHash,
-                FullName = request.FullName,
-                RoleId = role.Id
-            };
+            var newAccount = _mapper.Map<Account>(request);
+            newAccount.PasswordHash = passwordHash;
+            newAccount.RoleId = role.Id;
 
             _context.Accounts.Add(newAccount);
             await _context.SaveChangesAsync();
@@ -96,14 +92,11 @@ namespace Pawra.BLL.Service
             // Tạo JWT token
             var token = GenerateJwtToken(newAccount);
 
-            return new LoginResponseDto
-            {
-                Token = token,
-                Email = newAccount.Email,
-                FullName = newAccount.FullName,
-                Role = newAccount.Role.Name,
-                ExpiresAt = DateTime.UtcNow.AddHours(24)
-            };
+            var response = _mapper.Map<LoginResponseDto>(newAccount);
+            response.Token = token;
+            response.ExpiresAt = DateTime.UtcNow.AddHours(24);
+
+            return response;
         }
 
         private string GenerateJwtToken(Account account)

@@ -1,0 +1,1018 @@
+# Code Guild - PawraBackend Project
+
+> Hướng dẫn coding standards và best practices cho team phát triển PawraBackend
+
+## 📋 Mục lục
+- [Giới thiệu](#giới-thiệu)
+- [Cấu trúc Project](#cấu-trúc-project)
+- [Quy tắc đặt tên](#quy-tắc-đặt-tên)
+- [Kiến trúc & Pattern](#kiến-trúc--pattern)
+- [Database & Entities](#database--entities)
+- [DTOs & Validation](#dtos--validation)
+- [Services Layer](#services-layer)
+- [Controllers & API](#controllers--api)
+- [Authentication & Authorization](#authentication--authorization)
+- [Error Handling](#error-handling)
+- [AutoMapper](#automapper)
+- [Git Workflow](#git-workflow)
+
+---
+
+## 🎯 Giới thiệu
+
+**PawraBackend** là API backend cho hệ thống quản lý thú cưng, sử dụng **.NET 8**, **PostgreSQL**, và **JWT Authentication**.
+
+**Tech Stack:**
+- .NET 8 Web API
+- Entity Framework Core
+- PostgreSQL (Supabase)
+- AutoMapper
+- JWT Bearer Authentication
+- BCrypt.Net (Password Hashing)
+
+---
+
+## 🏗️ Cấu trúc Project
+
+```
+PawraBackend/
+├── Pawra.DAL/               # Data Access Layer
+│   ├── Entities/            # Database models
+│   ├── Repository/          # Generic repository
+│   ├── UnitOfWork/          # Unit of Work pattern
+│   ├── Data/                # Seed data & extensions
+│   └── PawraDBContext.cs    # DbContext
+├── Pawra.BLL/               # Business Logic Layer
+│   ├── DTOs/                # Data Transfer Objects
+│   ├── Interfaces/          # Service interfaces
+│   ├── Service/             # Service implementations
+│   ├── Exceptions/          # Custom exceptions
+│   └── Mappings/            # AutoMapper profiles
+└── PawraBackend/            # Presentation Layer
+    ├── Controllers/         # API Controllers
+    ├── Middlewares/         # Custom middlewares
+    └── Program.cs           # App configuration
+```
+
+---
+
+## 📝 Quy tắc đặt tên
+
+### General Naming Conventions
+
+| Loại | Convention | Ví dụ |
+|------|-----------|--------|
+| **Class** | PascalCase | `AccountService`, `AuthController` |
+| **Interface** | IPascalCase | `IAccountRoleService`, `IRepository<T>` |
+| **Method** | PascalCase | `GetAllAsync()`, `CreateAsync()` |
+| **Variable** | camelCase | `var accountRole`, `passwordHash` |
+| **Constant** | PascalCase | `const int MaxRetries = 3` |
+| **Private field** | _camelCase | `private readonly IMapper _mapper` |
+| **DTO** | PascalCaseDto | `LoginRequestDto`, `AccountRoleDto` |
+
+### Naming Files
+
+- **Entity**: `AccountRole.cs`, `Account.cs`
+- **DTO**: `CreateAccountRoleDto.cs`, `UpdateAccountRoleDto.cs`
+- **Service**: `AccountRoleService.cs`
+- **Interface**: `IAccountRoleService.cs`
+- **Controller**: `AccountRoleController.cs`
+
+---
+
+## 🏛️ Kiến trúc & Pattern
+
+### 3-Layer Architecture
+
+```
+┌─────────────────────────────────┐
+│  Presentation Layer (API)        │  Controllers, Middlewares
+├─────────────────────────────────┤
+│  Business Logic Layer (BLL)      │  Services, DTOs, Mappings
+├─────────────────────────────────┤
+│  Data Access Layer (DAL)         │  Entities, Repository, UnitOfWork
+└─────────────────────────────────┘
+```
+
+### Dependency Flow
+
+```
+PawraBackend (API) 
+    ↓ depends on
+Pawra.BLL (Business Logic)
+    ↓ depends on
+Pawra.DAL (Data Access)
+```
+
+**❗ Quan trọng:** 
+- API chỉ gọi Services, KHÔNG gọi trực tiếp DbContext
+- Services chỉ gọi Repository/UnitOfWork, KHÔNG gọi DbContext trực tiếp
+- Controllers KHÔNG chứa business logic
+
+---
+
+## 🗄️ Database & Entities
+
+### BaseEntity Pattern
+
+Tất cả entities phải kế thừa từ `BaseEntity`:
+
+```csharp
+public abstract class BaseEntity
+{
+    public Guid Id { get; protected set; }
+    public DateTime CreatedDate { get; protected set; }
+    public DateTime? UpdatedDate { get; protected set; }
+    public bool IsDeleted { get; set; }
+
+    protected BaseEntity()
+    {
+        Id = Guid.NewGuid();
+        CreatedDate = DateTime.UtcNow;
+    }
+
+    public void SetUpdatedDate()
+    {
+        UpdatedDate = DateTime.UtcNow;
+    }
+}
+```
+
+### Entity Example
+
+```csharp
+public class AccountRole : BaseEntity
+{
+    public string Name { get; set; } = null!;
+    
+    // Navigation properties
+    public ICollection<Account> Accounts { get; set; } = new List<Account>();
+}
+```
+
+**✅ Best Practices:**
+- Sử dụng `Guid` làm Primary Key
+- Luôn có `CreatedDate` và `UpdatedDate`
+- Navigation properties phải khởi tạo empty collection
+- Dùng `= null!;` cho required properties (C# 8+)
+
+---
+
+## 📦 DTOs & Validation
+
+### DTO Types
+
+1. **Request DTOs**: Nhận data từ client
+   - `CreateXxxDto` - Tạo mới
+   - `UpdateXxxDto` - Cập nhật
+   - `LoginRequestDto` - Login
+   
+2. **Response DTOs**: Trả data về client
+   - `XxxDto` - Chi tiết entity
+   - `LoginResponseDto` - Response sau login
+
+### Validation
+
+Sử dụng Data Annotations:
+
+```csharp
+public class CreateAccountRoleDto
+{
+    [Required(ErrorMessage = "Tên role là bắt buộc")]
+    [StringLength(50, ErrorMessage = "Tên role không được vượt quá 50 ký tự")]
+    public string Name { get; set; } = null!;
+}
+
+public class RegisterRequestDto
+{
+    [Required(ErrorMessage = "Email là bắt buộc")]
+    [EmailAddress(ErrorMessage = "Email không hợp lệ")]
+    public string Email { get; set; } = null!;
+
+    [Required(ErrorMessage = "Password là bắt buộc")]
+    [MinLength(6, ErrorMessage = "Password phải có ít nhất 6 ký tự")]
+    public string Password { get; set; } = null!;
+}
+```
+
+**✅ Best Practices:**
+- Validate tại DTO level (không validate trong service)
+- Error messages viết bằng Tiếng Việt
+- Kiểm tra `ModelState.IsValid` trong controller
+
+---
+
+## 🔧 Services Layer
+
+### Service Structure
+
+```csharp
+public class AccountRoleService : IAccountRoleService
+{
+    private readonly PawraDBContext _context;
+    private readonly IMapper _mapper;
+
+    public AccountRoleService(PawraDBContext context, IMapper mapper)
+    {
+        _context = context;
+        _mapper = mapper;
+    }
+
+    public async Task<AccountRoleDto> GetByIdAsync(Guid id)
+    {
+        var role = await _context.AccountRoles
+            .AsNoTracking()
+            .FirstOrDefaultAsync(r => r.Id == id);
+
+        if (role == null)
+        {
+            throw new NotFoundException($"Không tìm thấy role với ID: {id}");
+        }
+
+        return _mapper.Map<AccountRoleDto>(role);
+    }
+}
+```
+
+**✅ Best Practices:**
+
+1. **Async/Await**: Tất cả methods phải async
+   ```csharp
+   public async Task<IEnumerable<AccountRoleDto>> GetAllAsync()
+   ```
+
+2. **AsNoTracking**: Dùng cho read-only queries
+   ```csharp
+   .AsNoTracking()
+   ```
+
+3. **Include/ThenInclude**: Load related data
+   ```csharp
+   .Include(a => a.Role)
+   .ThenInclude(r => r.Permissions)
+   ```
+
+4. **AutoMapper**: Dùng mapper thay vì manual mapping
+   ```csharp
+   return _mapper.Map<AccountRoleDto>(role);
+   ```
+
+5. **Exception Handling**: Throw custom exceptions
+   ```csharp
+   throw new NotFoundException($"Không tìm thấy...");
+   ```
+
+6. **Business Validation**: Validate logic trong service
+   ```csharp
+   // Kiểm tra trùng
+   var exists = await _context.AccountRoles
+       .AnyAsync(r => r.Name.ToLower() == dto.Name.ToLower());
+   
+   if (exists)
+   {
+       throw new Exception("Role đã tồn tại");
+   }
+   ```
+
+---
+
+## 🎮 Controllers & API
+
+### Controller Structure
+
+```csharp
+[ApiController]
+[Route("api/[controller]")]
+[Authorize(Roles = "admin")]  // Authorization tại controller level
+public class AccountRoleController : ControllerBase
+{
+    private readonly IAccountRoleService _accountRoleService;
+
+    public AccountRoleController(IAccountRoleService accountRoleService)
+    {
+        _accountRoleService = accountRoleService;
+    }
+
+    /// <summary>
+    /// Lấy danh sách tất cả các role
+    /// </summary>
+    [HttpGet]
+    public async Task<IActionResult> GetAll()
+    {
+        try
+        {
+            var roles = await _accountRoleService.GetAllAsync();
+            return Ok(new
+            {
+                success = true,
+                message = "Lấy danh sách role thành công",
+                data = roles
+            });
+        }
+        catch (Exception ex)
+        {
+            return BadRequest(new
+            {
+                success = false,
+                message = ex.Message
+            });
+        }
+    }
+
+    /// <summary>
+    /// Tạo role mới (Chỉ admin)
+    /// </summary>
+    [HttpPost]
+    public async Task<IActionResult> Create([FromBody] CreateAccountRoleDto dto)
+    {
+        if (!ModelState.IsValid)
+        {
+            return BadRequest(new
+            {
+                success = false,
+                message = "Dữ liệu không hợp lệ",
+                errors = ModelState
+            });
+        }
+
+        var role = await _accountRoleService.CreateAsync(dto);
+        return CreatedAtAction(nameof(GetById), new { id = role.Id }, new
+        {
+            success = true,
+            message = "Tạo role thành công",
+            data = role
+        });
+    }
+}
+```
+
+### Response Format
+
+**Tất cả API responses phải có format:**
+
+✅ **Success Response:**
+```json
+{
+  "success": true,
+  "message": "Mô tả thành công",
+  "data": { ... }
+}
+```
+
+❌ **Error Response:**
+```json
+{
+  "success": false,
+  "message": "Mô tả lỗi"
+}
+```
+
+### HTTP Methods & Status Codes
+
+| Method | Action | Success Status |
+|--------|--------|----------------|
+| `GET` | Đọc | `200 OK` |
+| `POST` | Tạo mới | `201 Created` |
+| `PUT` | Cập nhật toàn bộ | `200 OK` |
+| `PATCH` | Cập nhật một phần | `200 OK` |
+| `DELETE` | Xóa | `200 OK` hoặc `204 No Content` |
+
+### Route Naming
+
+```csharp
+[Route("api/[controller]")]           // api/accountrole
+[HttpGet]                              // GET api/accountrole
+[HttpGet("{id}")]                      // GET api/accountrole/{id}
+[HttpPost]                             // POST api/accountrole
+[HttpPut("{id}")]                      // PUT api/accountrole/{id}
+[HttpDelete("{id}")]                   // DELETE api/accountrole/{id}
+```
+
+---
+
+## 🔐 Authentication & Authorization
+
+### JWT Configuration
+
+File: `appsettings.json`
+```json
+{
+  "JwtSettings": {
+    "Key": "your-secret-key-here-minimum-32-characters",
+    "Issuer": "PawraBackend",
+    "Audience": "PawraFrontend"
+  }
+}
+```
+
+### Authorization Attributes
+
+1. **Controller Level** - Tất cả endpoints cần auth:
+```csharp
+[Authorize(Roles = "admin")]
+public class AccountRoleController : ControllerBase
+```
+
+2. **Action Level** - Override cho endpoint cụ thể:
+```csharp
+[AllowAnonymous]  // Public endpoint
+public async Task<IActionResult> GetAll()
+```
+
+3. **Multiple Roles:**
+```csharp
+[Authorize(Roles = "admin,veterinarian")]
+```
+
+### Implementing Auth in Service
+
+```csharp
+// Generate JWT Token
+private string GenerateJwtToken(Account account)
+{
+    var claims = new[]
+    {
+        new Claim(ClaimTypes.NameIdentifier, account.Id.ToString()),
+        new Claim(ClaimTypes.Email, account.Email),
+        new Claim(ClaimTypes.Name, account.FullName),
+        new Claim(ClaimTypes.Role, account.Role.Name)
+    };
+
+    var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey));
+    var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+    var token = new JwtSecurityToken(
+        issuer: _configuration["JwtSettings:Issuer"],
+        audience: _configuration["JwtSettings:Audience"],
+        claims: claims,
+        expires: DateTime.UtcNow.AddHours(24),
+        signingCredentials: credentials
+    );
+
+    return new JwtSecurityTokenHandler().WriteToken(token);
+}
+```
+
+### Password Hashing
+
+**✅ LUÔN hash password với BCrypt:**
+
+```csharp
+// Hash password khi register/create
+var passwordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
+
+// Verify password khi login
+bool isValid = BCrypt.Net.BCrypt.Verify(request.Password, account.PasswordHash);
+```
+
+**❌ KHÔNG BAO GIỜ:**
+- Lưu plain password vào database
+- Log password ra console
+- Trả password trong response
+
+---
+
+## 🚨 Error Handling
+
+### Custom Exceptions
+
+File: `Pawra.BLL/Exceptions/NotFoundException.cs`
+```csharp
+public class NotFoundException : Exception
+{
+    public NotFoundException(string message) : base(message)
+    {
+    }
+}
+```
+
+### Usage in Services
+
+```csharp
+if (role == null)
+{
+    throw new NotFoundException($"Không tìm thấy role với ID: {id}");
+}
+
+if (existingRole != null)
+{
+    throw new Exception($"Role '{dto.Name}' đã tồn tại trong hệ thống");
+}
+```
+
+### Usage in Controllers
+
+```csharp
+try
+{
+    var role = await _accountRoleService.GetByIdAsync(id);
+    return Ok(new { success = true, data = role });
+}
+catch (NotFoundException ex)
+{
+    return NotFound(new { success = false, message = ex.Message });
+}
+catch (Exception ex)
+{
+    return BadRequest(new { success = false, message = ex.Message });
+}
+```
+
+---
+
+## 🗺️ AutoMapper
+
+### ⚠️ QUY TẮC QUAN TRỌNG
+
+**TUYỆT ĐỐI:** Mọi mapping configuration phải được định nghĩa trong file `Pawra.BLL/Mappings/MappingProfile.cs`. 
+
+**❌ KHÔNG BAO GIỜ:**
+- Tạo mapping trực tiếp trong Service
+- Tạo MapperConfiguration trong controller
+- Sử dụng `Mapper.CreateMap()` ngoài MappingProfile
+- Tự tạo instance của Mapper
+
+**✅ LUÔN LUÔN:**
+- Thêm tất cả mapping vào `MappingProfile.cs`
+- Inject `IMapper` qua constructor
+- Sử dụng `_mapper.Map<>()` trong services
+
+### Configuration trong MappingProfile.cs
+
+File: `Pawra.BLL/Mappings/MappingProfile.cs`
+
+```csharp
+using AutoMapper;
+using Pawra.BLL.DTOs;
+using Pawra.DAL.Entities;
+
+namespace Pawra.BLL.Mappings
+{
+    public class MappingProfile : Profile
+    {
+        public MappingProfile()
+        {
+            // ===== AccountRole Mappings =====
+            CreateMap<AccountRole, AccountRoleDto>();
+            CreateMap<CreateAccountRoleDto, AccountRole>();
+            CreateMap<UpdateAccountRoleDto, AccountRole>();
+
+            // ===== Account Mappings =====
+            // Basic mapping
+            CreateMap<Account, LoginResponseDto>()
+                .ForMember(dest => dest.Token, opt => opt.Ignore())
+                .ForMember(dest => dest.ExpiresAt, opt => opt.Ignore())
+                .ForMember(dest => dest.Role, opt => opt.MapFrom(src => src.Role.Name));
+
+            CreateMap<RegisterRequestDto, Account>()
+                .ForMember(dest => dest.PasswordHash, opt => opt.Ignore())
+                .ForMember(dest => dest.RoleId, opt => opt.Ignore());
+
+            // ===== Thêm mapping mới tại đây =====
+            // CreateMap<YourEntity, YourDto>();
+        }
+    }
+}
+```
+
+**📝 Lưu ý khi thêm mapping mới:**
+1. Group theo entity (dùng comment để phân chia)
+2. Mapping theo thứ tự: Entity → DTO, CreateDto → Entity, UpdateDto → Entity
+3. Dùng `.ForMember()` khi cần custom logic
+4. Dùng `.Ignore()` cho properties sẽ set riêng
+
+### Register in Program.cs
+
+File: `PawraBackend/Program.cs`
+
+```csharp
+// AutoMapper Configuration
+builder.Services.AddAutoMapper(typeof(Pawra.BLL.Mappings.MappingProfile));
+```
+
+⚠️ **Chỉ cần register một lần** trong Program.cs, tất cả mappings trong MappingProfile sẽ tự động được load.
+
+### Usage in Services
+
+```csharp
+public class AccountRoleService : IAccountRoleService
+{
+    private readonly PawraDBContext _context;
+    private readonly IMapper _mapper;  // ✅ Inject IMapper
+
+    public AccountRoleService(PawraDBContext context, IMapper mapper)
+    {
+        _context = context;
+        _mapper = mapper;  // ✅ Lưu vào field
+    }
+
+    public async Task<AccountRoleDto> GetByIdAsync(Guid id)
+    {
+        var role = await _context.AccountRoles.FindAsync(id);
+        
+        // ✅ ĐÚNG: Sử dụng _mapper
+        return _mapper.Map<AccountRoleDto>(role);
+        
+        // ❌ SAI: Manual mapping
+        // return new AccountRoleDto 
+        // { 
+        //     Id = role.Id, 
+        //     Name = role.Name 
+        // };
+    }
+}
+```
+
+### Mapping Examples
+
+**1. Entity → DTO (Read Operations)**
+```csharp
+// Single object
+var roleDto = _mapper.Map<AccountRoleDto>(role);
+
+// Collection
+var rolesDto = _mapper.Map<IEnumerable<AccountRoleDto>>(roles);
+var rolesList = _mapper.Map<List<AccountRoleDto>>(rolesList);
+```
+
+**2. DTO → Entity (Create Operations)**
+```csharp
+// Tạo entity mới từ DTO
+var newRole = _mapper.Map<AccountRole>(createDto);
+
+// Có thể set thêm properties sau khi map
+newRole.PasswordHash = hashedPassword;
+newRole.RoleId = defaultRoleId;
+```
+
+**3. DTO → Entity (Update Operations)**
+```csharp
+// Map và update existing entity
+var existingRole = await _context.AccountRoles.FindAsync(id);
+_mapper.Map(updateDto, existingRole);  // Update properties của existingRole
+
+// Set UpdatedDate từ BaseEntity
+existingRole.SetUpdatedDate();
+
+await _context.SaveChangesAsync();
+```
+
+### Advanced Mapping Rules
+
+**Ignore Properties:**
+```csharp
+CreateMap<RegisterRequestDto, Account>()
+    .ForMember(dest => dest.PasswordHash, opt => opt.Ignore())
+    .ForMember(dest => dest.RoleId, opt => opt.Ignore());
+```
+
+**Custom Mapping:**
+```csharp
+CreateMap<Account, LoginResponseDto>()
+    .ForMember(dest => dest.Role, opt => opt.MapFrom(src => src.Role.Name))
+    .ForMember(dest => dest.FullName, opt => opt.MapFrom(src => $"{src.FirstName} {src.LastName}"));
+```
+
+**Conditional Mapping:**
+```csharp
+CreateMap<Account, AccountDto>()
+    .ForMember(dest => dest.IsActive, 
+        opt => opt.MapFrom(src => !src.IsDeleted && src.EmailVerified));
+```
+
+**Nested Objects:**
+```csharp
+CreateMap<Account, AccountDetailDto>()
+    .ForMember(dest => dest.RoleName, opt => opt.MapFrom(src => src.Role.Name))
+    .ForMember(dest => dest.ClinicName, opt => opt.MapFrom(src => src.ClinicManager.Clinic.Name));
+```
+
+### Common Mistakes
+
+**❌ SAI - Tạo mapping ngoài MappingProfile:**
+```csharp
+// KHÔNG làm thế này!
+public class AccountRoleService
+{
+    public AccountRoleService()
+    {
+        Mapper.Initialize(cfg => {
+            cfg.CreateMap<AccountRole, AccountRoleDto>();
+        });
+    }
+}
+```
+
+**❌ SAI - Manual mapping khi đã có AutoMapper:**
+```csharp
+// KHÔNG làm thế này khi project đã có AutoMapper!
+return new AccountRoleDto 
+{
+    Id = role.Id,
+    Name = role.Name,
+    CreatedDate = role.CreatedDate,
+    UpdatedDate = role.UpdatedDate
+};
+```
+
+**✅ ĐÚNG - Dùng AutoMapper:**
+```csharp
+// Thêm mapping vào MappingProfile.cs:
+CreateMap<AccountRole, AccountRoleDto>();
+
+// Sử dụng trong service:
+return _mapper.Map<AccountRoleDto>(role);
+```
+
+**✅ Best Practices:**
+- ✅ Luôn dùng AutoMapper thay vì manual mapping
+- ✅ Tất cả mapping phải ở trong `MappingProfile.cs`
+- ✅ Group mappings theo entity với comments
+- ✅ Inject `IMapper` qua constructor, KHÔNG tạo instance mới
+- ✅ Dùng `.ForMember()` để custom mapping rules
+- ✅ Dùng `.Ignore()` cho properties sẽ set sau
+- ✅ Test mapping sau khi thêm mới
+- Dùng `.ForMember()` để custom mapping rules
+- Dùng `.Ignore()` cho properties không cần map
+
+---
+
+## 🌿 Git Workflow
+
+### Branch Strategy
+
+```
+master (production)
+  ↓
+develop (integration)
+  ↓
+feature/feature-name
+bugfix/bug-name
+hotfix/hotfix-name
+```
+
+### Commit Message Format
+
+```
+<type>: <subject>
+
+[optional body]
+```
+
+**Types:**
+- `feat`: Tính năng mới
+- `fix`: Sửa bug
+- `docs`: Thay đổi documentation
+- `style`: Format code (không ảnh hưởng logic)
+- `refactor`: Refactor code
+- `test`: Thêm tests
+- `chore`: Công việc maintain (update packages, etc.)
+
+**Ví dụ:**
+```
+feat: thêm API CRUD cho AccountRole
+
+- Tạo AccountRoleController với các endpoint CRUD
+- Implement AccountRoleService với validation
+- Thêm DTOs và AutoMapper configuration
+- Chỉ admin được phép truy cập API này
+```
+
+### Before Commit Checklist
+
+- [ ] Code đã build thành công (`dotnet build`)
+- [ ] Đã test các API endpoints
+- [ ] Đã update MappingProfile nếu thêm DTOs mới
+- [ ] Đã thêm XML comments cho controller actions
+- [ ] Đã xóa console.log/debug code
+- [ ] Đã validate ModelState trong controller
+
+---
+
+## 🎯 Development Workflow
+
+### 1. Tạo Entity mới
+
+```csharp
+// Pawra.DAL/Entities/NewEntity.cs
+public class NewEntity : BaseEntity
+{
+    public string Name { get; set; } = null!;
+}
+```
+
+### 2. Update DbContext
+
+```csharp
+// Pawra.DAL/PawraDBContext.cs
+public DbSet<NewEntity> NewEntities { get; set; }
+```
+
+### 3. Tạo Migration
+
+```bash
+dotnet ef migrations add AddNewEntity --project Pawra.DAL --startup-project PawraBackend
+dotnet ef database update --project Pawra.DAL --startup-project PawraBackend
+```
+
+### 4. Tạo DTOs
+
+```csharp
+// Pawra.BLL/DTOs/NewEntityDto.cs
+// Pawra.BLL/DTOs/CreateNewEntityDto.cs
+// Pawra.BLL/DTOs/UpdateNewEntityDto.cs
+```
+
+### 5. Update AutoMapper
+
+```csharp
+// Pawra.BLL/Mappings/MappingProfile.cs
+CreateMap<NewEntity, NewEntityDto>();
+CreateMap<CreateNewEntityDto, NewEntity>();
+CreateMap<UpdateNewEntityDto, NewEntity>();
+```
+
+### 6. Tạo Service
+
+```csharp
+// Pawra.BLL/Interfaces/INewEntityService.cs
+// Pawra.BLL/Service/NewEntityService.cs
+```
+
+### 7. Tạo Controller
+
+```csharp
+// PawraBackend/Controllers/NewEntityController.cs
+```
+
+### 8. Register Service
+
+```csharp
+// PawraBackend/Program.cs
+builder.Services.AddScoped<INewEntityService, NewEntityService>();
+```
+
+---
+
+## 🧪 Testing APIs
+
+### Using VS Code REST Client
+
+File: `doc/test/YourApi.http`
+
+```http
+### Variables
+@baseUrl = https://localhost:7001/api
+@token = your-jwt-token-here
+
+### Login
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@pawra.com",
+  "password": "Admin@123"
+}
+
+### Get All Roles (with auth)
+GET {{baseUrl}}/accountrole
+Authorization: Bearer {{token}}
+
+### Create Role
+POST {{baseUrl}}/accountrole
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "New Role"
+}
+```
+
+---
+
+## 📚 Resources
+
+### Documentation
+- [ASP.NET Core Docs](https://learn.microsoft.com/en-us/aspnet/core/)
+- [Entity Framework Core](https://learn.microsoft.com/en-us/ef/core/)
+- [AutoMapper](https://docs.automapper.org/)
+
+### NuGet Packages Used
+```xml
+<PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.11" />
+<PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.11" />
+<PackageReference Include="AutoMapper" Version="12.0.1" />
+<PackageReference Include="AutoMapper.Extensions.Microsoft.DependencyInjection" Version="12.0.1" />
+<PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.11" />
+<PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
+<PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.15.0" />
+```
+
+---
+
+## ✨ Tips & Tricks
+
+### 1. Async/Await Pattern
+```csharp
+// ✅ Good
+public async Task<AccountRoleDto> GetByIdAsync(Guid id)
+{
+    var role = await _context.AccountRoles.FindAsync(id);
+    return _mapper.Map<AccountRoleDto>(role);
+}
+
+// ❌ Bad
+public AccountRoleDto GetById(Guid id)
+{
+    var role = _context.AccountRoles.Find(id);
+    return _mapper.Map<AccountRoleDto>(role);
+}
+```
+
+### 2. Null Checking
+```csharp
+// ✅ Good
+if (role == null)
+{
+    throw new NotFoundException($"Không tìm thấy role với ID: {id}");
+}
+
+// ❌ Bad
+// Không check null
+```
+
+### 3. Using Statements
+```csharp
+// ✅ Good - Clean code
+using Microsoft.EntityFrameworkCore;
+using Pawra.BLL.DTOs;
+using AutoMapper;
+
+// ❌ Bad - Full namespace
+var context = new Pawra.DAL.PawraDBContext();
+```
+
+### 4. Dependency Injection
+```csharp
+// ✅ Good - Constructor injection
+private readonly IMapper _mapper;
+public AccountRoleService(IMapper mapper)
+{
+    _mapper = mapper;
+}
+
+// ❌ Bad - New instance
+var mapper = new Mapper(config);
+```
+
+---
+
+## 🆘 Common Issues
+
+### Issue 1: Version Conflict with AutoMapper
+```
+Error: Version conflict detected for AutoMapper
+```
+**Solution:** Đảm bảo cả 2 packages dùng cùng version:
+```xml
+<PackageReference Include="AutoMapper" Version="12.0.1" />
+<PackageReference Include="AutoMapper.Extensions.Microsoft.DependencyInjection" Version="12.0.1" />
+```
+
+### Issue 2: JWT Token không hoạt động
+```
+401 Unauthorized
+```
+**Checklist:**
+- [ ] JwtSettings trong appsettings.json đúng format
+- [ ] Token được thêm vào header: `Authorization: Bearer {token}`
+- [ ] Token chưa expired
+- [ ] Claims trong token đúng với role required
+
+### Issue 3: Migration lỗi
+```
+Unable to create migration
+```
+**Solution:**
+```bash
+# Xóa migration
+dotnet ef migrations remove --project Pawra.DAL --startup-project PawraBackend
+
+# Tạo lại
+dotnet ef migrations add MigrationName --project Pawra.DAL --startup-project PawraBackend
+```
+
+---
+
+## 📞 Support
+
+Nếu có thắc mắc hoặc issue, liên hệ:
+- Team Lead: [Your Name]
+- Email: [your-email@example.com]
+- Slack: #pawra-backend
+
+---
+
+**Happy Coding! 🚀**
+
+*Last Updated: December 22, 2025*
