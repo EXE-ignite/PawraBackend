@@ -1,4 +1,4 @@
-﻿namespace Inventory.BLL.Exceptions
+﻿namespace Pawra.BLL.Exceptions
 {
     public class NotFoundException : Exception
     {

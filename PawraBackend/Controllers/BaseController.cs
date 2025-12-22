@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Authorization;
+﻿#nullable disable
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.Mvc;
 
@@ -24,7 +25,11 @@ namespace Inventory.API.Controllers
             if (method == null)
                 return BadRequest("Create method not implemented in service.");
 
-            var result = await (Task<TDto>)method.Invoke(_service, new object[] { dto });
+            var invokeResult = method.Invoke(_service, new object[] { dto });
+            if (invokeResult == null)
+                return StatusCode(500, "Method invocation failed.");
+
+            var result = await ((Task<TDto>)invokeResult)!;
             return Created(string.Empty, result);
         }
 
@@ -36,7 +41,11 @@ namespace Inventory.API.Controllers
             if (method == null)
                 return BadRequest("Read method not implemented in service.");
 
-            var result = await (Task<List<TDto>>)method.Invoke(_service, new object[] { pageSize, pageNumber });
+            var invokeResult = method.Invoke(_service, new object[] { pageSize, pageNumber });
+            if (invokeResult == null)
+                return StatusCode(500, "Method invocation failed.");
+
+            var result = await ((Task<List<TDto>>)invokeResult)!;
             return Ok(result);
         }
 
@@ -48,7 +57,11 @@ namespace Inventory.API.Controllers
             if (method == null)
                 return BadRequest("Read by Id method not implemented in service.");
 
-            var result = await (Task<TDto>)method.Invoke(_service, new object[] { id });
+            var invokeResult = method.Invoke(_service, new object[] { id });
+            if (invokeResult == null)
+                return StatusCode(500, "Method invocation failed.");
+
+            var result = await ((Task<TDto>)invokeResult)!;
             return Ok(result);
         }
 
@@ -60,7 +73,11 @@ namespace Inventory.API.Controllers
             if (method == null)
                 return BadRequest("Update method not implemented in service.");
 
-            await (Task)method.Invoke(_service, new object[] { dto });
+            var invokeResult = method.Invoke(_service, new object[] { dto });
+            if (invokeResult == null)
+                return StatusCode(500, "Method invocation failed.");
+
+            await ((Task)invokeResult)!;
             return NoContent();
         }
 
@@ -72,7 +89,11 @@ namespace Inventory.API.Controllers
             if (method == null)
                 return BadRequest("Delete method not implemented in service.");
 
-            await (Task)method.Invoke(_service, new object[] { id });
+            var invokeResult = method.Invoke(_service, new object[] { id });
+            if (invokeResult == null)
+                return StatusCode(500, "Method invocation failed.");
+
+            await ((Task)invokeResult)!;
             return NoContent();
         }
     }
