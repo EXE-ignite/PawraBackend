@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Pawra.DAL.Data;
 using Pawra.DAL.Entities;
 
 namespace Pawra.DAL
@@ -193,6 +194,9 @@ namespace Pawra.DAL
                 .WithMany(v => v.VaccinationRecords)
                 .HasForeignKey(vr => vr.VaccineId)
                 .OnDelete(DeleteBehavior.Restrict);
+data
+            modelBuilder.SeedAccountRoles(    }
+            );
         }
     }
 }
