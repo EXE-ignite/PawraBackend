@@ -22,6 +22,86 @@ namespace Pawra.BLL.Mappings
             CreateMap<RegisterRequestDto, Account>()
                 .ForMember(dest => dest.PasswordHash, opt => opt.Ignore())
                 .ForMember(dest => dest.RoleId, opt => opt.Ignore());
+
+            // ===== Service Mappings =====
+            CreateMap<Pawra.DAL.Entities.Service, ServiceDto>();
+            CreateMap<CreateServiceDto, Pawra.DAL.Entities.Service>();
+            CreateMap<UpdateServiceDto, Pawra.DAL.Entities.Service>();
+
+            // ===== Vaccine Mappings =====
+            CreateMap<Vaccine, VaccineDto>();
+            CreateMap<CreateVaccineDto, Vaccine>();
+            CreateMap<UpdateVaccineDto, Vaccine>();
+
+            // ===== PaymentMethod Mappings =====
+            CreateMap<PaymentMethod, PaymentMethodDto>();
+            CreateMap<CreatePaymentMethodDto, PaymentMethod>();
+            CreateMap<UpdatePaymentMethodDto, PaymentMethod>();
+
+            // ===== SubscriptionPlan Mappings =====
+            CreateMap<SubscriptionPlan, SubscriptionPlanDto>();
+            CreateMap<CreateSubscriptionPlanDto, SubscriptionPlan>();
+            CreateMap<UpdateSubscriptionPlanDto, SubscriptionPlan>();
+
+            // ===== Clinic Mappings =====
+            CreateMap<Clinic, ClinicDto>();
+            CreateMap<CreateClinicDto, Clinic>();
+            CreateMap<UpdateClinicDto, Clinic>();
+
+            // ===== Customer Mappings =====
+            CreateMap<Customer, CustomerDto>();
+            CreateMap<CreateCustomerDto, Customer>();
+            CreateMap<UpdateCustomerDto, Customer>();
+
+            // ===== Pet Mappings =====
+            CreateMap<Pet, PetDto>();
+            CreateMap<CreatePetDto, Pet>();
+            CreateMap<UpdatePetDto, Pet>();
+
+            // ===== Veterinarian Mappings =====
+            CreateMap<Veterinarian, VeterinarianDto>();
+            CreateMap<CreateVeterinarianDto, Veterinarian>();
+            CreateMap<UpdateVeterinarianDto, Veterinarian>();
+
+            // ===== ClinicManager Mappings =====
+            CreateMap<ClinicManager, ClinicManagerDto>();
+            CreateMap<CreateClinicManagerDto, ClinicManager>();
+            CreateMap<UpdateClinicManagerDto, ClinicManager>();
+
+            // ===== Appointment Mappings =====
+            CreateMap<Appointment, AppointmentDto>();
+            CreateMap<CreateAppointmentDto, Appointment>();
+            CreateMap<UpdateAppointmentDto, Appointment>();
+
+            // ===== Payment Mappings =====
+            CreateMap<Payment, PaymentDto>();
+            CreateMap<CreatePaymentDto, Payment>();
+            CreateMap<UpdatePaymentDto, Payment>();
+
+            // ===== SubscriptionAccount Mappings =====
+            CreateMap<SubscriptionAccount, SubscriptionAccountDto>();
+            CreateMap<CreateSubscriptionAccountDto, SubscriptionAccount>();
+            CreateMap<UpdateSubscriptionAccountDto, SubscriptionAccount>();
+
+            // ===== Prescription Mappings =====
+            CreateMap<Prescription, PrescriptionDto>();
+            CreateMap<CreatePrescriptionDto, Prescription>();
+            CreateMap<UpdatePrescriptionDto, Prescription>();
+
+            // ===== VaccinationRecord Mappings =====
+            CreateMap<VaccinationRecord, VaccinationRecordDto>();
+            CreateMap<CreateVaccinationRecordDto, VaccinationRecord>();
+            CreateMap<UpdateVaccinationRecordDto, VaccinationRecord>();
+
+            // ===== ClinicService Mappings =====
+            CreateMap<Pawra.DAL.Entities.ClinicService, ClinicServiceDto>();
+            CreateMap<CreateClinicServiceDto, Pawra.DAL.Entities.ClinicService>();
+            CreateMap<UpdateClinicServiceDto, Pawra.DAL.Entities.ClinicService>();
+
+            // ===== ClinicVaccine Mappings =====
+            CreateMap<ClinicVaccine, ClinicVaccineDto>();
+            CreateMap<CreateClinicVaccineDto, ClinicVaccine>();
+            CreateMap<UpdateClinicVaccineDto, ClinicVaccine>();
         }
     }
 }

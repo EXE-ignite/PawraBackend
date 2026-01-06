@@ -18,16 +18,16 @@ namespace PawraBackend
 
             // Add services to the container.
             builder.Services.AddControllers();
-            
+
             // Database Configuration
-            var conString = builder.Configuration.GetConnectionString("DefaultConnection") 
+            var conString = builder.Configuration.GetConnectionString("DefaultConnection")
                 ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
             builder.Services.AddDbContext<PawraDBContext>(options =>
-                options.UseNpgsql(conString, 
+                options.UseNpgsql(conString,
                     b => b.MigrationsAssembly("Pawra.DAL")));
 
             // JWT Authentication Configuration
-            var jwtKey = builder.Configuration["JwtSettings:Key"] 
+            var jwtKey = builder.Configuration["JwtSettings:Key"]
                 ?? throw new InvalidOperationException("JWT Key not found in configuration.");
             var key = Encoding.UTF8.GetBytes(jwtKey);
 
@@ -58,6 +58,22 @@ namespace PawraBackend
             // Register Services
             builder.Services.AddScoped<IAuthService, AuthService>();
             builder.Services.AddScoped<IAccountRoleService, AccountRoleService>();
+            builder.Services.AddScoped<IServiceService, ServiceService>();
+            builder.Services.AddScoped<IVaccineService, VaccineService>();
+            builder.Services.AddScoped<IPaymentMethodService, PaymentMethodService>();
+            builder.Services.AddScoped<ISubscriptionPlanService, SubscriptionPlanService>();
+            builder.Services.AddScoped<IClinicService, ClinicService>();
+            builder.Services.AddScoped<ICustomerService, CustomerService>();
+            builder.Services.AddScoped<IPetService, PetService>();
+            builder.Services.AddScoped<IVeterinarianService, VeterinarianService>();
+            builder.Services.AddScoped<IClinicManagerService, ClinicManagerService>();
+            builder.Services.AddScoped<IAppointmentService, AppointmentService>();
+            builder.Services.AddScoped<IPaymentService, PaymentService>();
+            builder.Services.AddScoped<ISubscriptionAccountService, SubscriptionAccountService>();
+            builder.Services.AddScoped<IPrescriptionService, PrescriptionService>();
+            builder.Services.AddScoped<IVaccinationRecordService, VaccinationRecordService>();
+            builder.Services.AddScoped<IClinicServiceService, ClinicServiceService>();
+            builder.Services.AddScoped<IClinicVaccineService, ClinicVaccineService>();
 
             // Swagger Configuration
             builder.Services.AddEndpointsApiExplorer();
