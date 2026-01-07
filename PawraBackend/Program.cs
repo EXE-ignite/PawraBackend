@@ -96,8 +96,16 @@ namespace PawraBackend
                 using (var scope = app.Services.CreateScope())
                 {
                     var dbContext = scope.ServiceProvider.GetRequiredService<PawraDBContext>();
-                    dbContext.Database.Migrate();
-                    dbContext.EnsureSeedData();
+                    try
+                    {
+                        dbContext.Database.Migrate();
+                        dbContext.EnsureSeedData();
+                    }
+                    catch (Exception ex)
+                    {
+                        var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+                        logger.LogWarning(ex, "Could not run migrations. Database may need to be set up manually or user needs appropriate permissions.");
+                    }
                 }
             }
 
