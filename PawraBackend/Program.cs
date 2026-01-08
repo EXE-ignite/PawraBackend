@@ -58,6 +58,22 @@ namespace PawraBackend
             // Register Services
             builder.Services.AddScoped<IAuthService, AuthService>();
             builder.Services.AddScoped<IAccountRoleService, AccountRoleService>();
+            builder.Services.AddScoped<IClinicService, ClinicService>();
+            builder.Services.AddScoped<ICustomerService, CustomerService>();
+            builder.Services.AddScoped<IPetService, PetService>();
+            builder.Services.AddScoped<IVaccineService, VaccineService>();
+            builder.Services.AddScoped<IServiceService, ServiceService>();
+            builder.Services.AddScoped<IPaymentMethodService, PaymentMethodService>();
+            builder.Services.AddScoped<ISubscriptionPlanService, SubscriptionPlanService>();
+            builder.Services.AddScoped<IAppointmentService, AppointmentService>();
+            builder.Services.AddScoped<IVeterinarianService, VeterinarianService>();
+            builder.Services.AddScoped<IClinicManagerService, ClinicManagerService>();
+            builder.Services.AddScoped<IClinicServiceService, ClinicServiceService>();
+            builder.Services.AddScoped<IClinicVaccineService, ClinicVaccineService>();
+            builder.Services.AddScoped<IPaymentService, PaymentService>();
+            builder.Services.AddScoped<IPrescriptionService, PrescriptionService>();
+            builder.Services.AddScoped<ISubscriptionAccountService, SubscriptionAccountService>();
+            builder.Services.AddScoped<IVaccinationRecordService, VaccinationRecordService>();
 
             // Swagger Configuration
             builder.Services.AddEndpointsApiExplorer();
