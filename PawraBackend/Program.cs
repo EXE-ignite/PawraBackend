@@ -113,10 +113,42 @@ namespace PawraBackend
             // Register Repositories (optional - if used directly)
             builder.Services.AddScoped(typeof(BaseRepository<>));
             builder.Services.AddScoped<Pawra.DAL.Interfaces.IAccountRoleRepository, Pawra.DAL.Repository.AccountRoleRepository>();
+            builder.Services.AddScoped<Pawra.DAL.Interfaces.IClinicRepository, Pawra.DAL.Repository.ClinicRepository>();
+            builder.Services.AddScoped<Pawra.DAL.Interfaces.ICustomerRepository, Pawra.DAL.Repository.CustomerRepository>();
+            builder.Services.AddScoped<Pawra.DAL.Interfaces.IPetRepository, Pawra.DAL.Repository.PetRepository>();
+            builder.Services.AddScoped<Pawra.DAL.Interfaces.IVaccineRepository, Pawra.DAL.Repository.VaccineRepository>();
+            builder.Services.AddScoped<Pawra.DAL.Interfaces.IServiceRepository, Pawra.DAL.Repository.ServiceRepository>();
+            builder.Services.AddScoped<Pawra.DAL.Interfaces.IPaymentMethodRepository, Pawra.DAL.Repository.PaymentMethodRepository>();
+            builder.Services.AddScoped<Pawra.DAL.Interfaces.ISubscriptionPlanRepository, Pawra.DAL.Repository.SubscriptionPlanRepository>();
+            builder.Services.AddScoped<Pawra.DAL.Interfaces.IAppointmentRepository, Pawra.DAL.Repository.AppointmentRepository>();
+            builder.Services.AddScoped<Pawra.DAL.Interfaces.IVeterinarianRepository, Pawra.DAL.Repository.VeterinarianRepository>();
+            builder.Services.AddScoped<Pawra.DAL.Interfaces.IClinicManagerRepository, Pawra.DAL.Repository.ClinicManagerRepository>();
+            builder.Services.AddScoped<Pawra.DAL.Interfaces.IClinicServiceRepository, Pawra.DAL.Repository.ClinicServiceRepository>();
+            builder.Services.AddScoped<Pawra.DAL.Interfaces.IClinicVaccineRepository, Pawra.DAL.Repository.ClinicVaccineRepository>();
+            builder.Services.AddScoped<Pawra.DAL.Interfaces.IPaymentRepository, Pawra.DAL.Repository.PaymentRepository>();
+            builder.Services.AddScoped<Pawra.DAL.Interfaces.IPrescriptionRepository, Pawra.DAL.Repository.PrescriptionRepository>();
+            builder.Services.AddScoped<Pawra.DAL.Interfaces.ISubscriptionAccountRepository, Pawra.DAL.Repository.SubscriptionAccountRepository>();
+            builder.Services.AddScoped<Pawra.DAL.Interfaces.IVaccinationRecordRepository, Pawra.DAL.Repository.VaccinationRecordRepository>();
 
             // Register Services
             builder.Services.AddScoped<IAuthService, AuthService>();
             builder.Services.AddScoped<IAccountRoleService, AccountRoleService>();
+            builder.Services.AddScoped<IClinicService, ClinicService>();
+            builder.Services.AddScoped<ICustomerService, CustomerService>();
+            builder.Services.AddScoped<IPetService, PetService>();
+            builder.Services.AddScoped<IVaccineService, VaccineService>();
+            builder.Services.AddScoped<IServiceService, ServiceService>();
+            builder.Services.AddScoped<IPaymentMethodService, PaymentMethodService>();
+            builder.Services.AddScoped<ISubscriptionPlanService, SubscriptionPlanService>();
+            builder.Services.AddScoped<IAppointmentService, AppointmentService>();
+            builder.Services.AddScoped<IVeterinarianService, VeterinarianService>();
+            builder.Services.AddScoped<IClinicManagerService, ClinicManagerService>();
+            builder.Services.AddScoped<IClinicServiceService, ClinicServiceService>();
+            builder.Services.AddScoped<IClinicVaccineService, ClinicVaccineService>();
+            builder.Services.AddScoped<IPaymentService, PaymentService>();
+            builder.Services.AddScoped<IPrescriptionService, PrescriptionService>();
+            builder.Services.AddScoped<ISubscriptionAccountService, SubscriptionAccountService>();
+            builder.Services.AddScoped<IVaccinationRecordService, VaccinationRecordService>();
 
             // Swagger Configuration
             builder.Services.AddEndpointsApiExplorer();
