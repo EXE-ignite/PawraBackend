@@ -5,23 +5,26 @@ using Pawra.BLL.Interfaces;
 
 namespace PawraBackend.Controllers
 {
+    /// <summary>
+    /// Controller quản lý Account Roles - kế thừa BaseController để tận dụng CRUD operations
+    /// CHỈ ADMIN MỚI ĐƯỢC TRUY CẬP
+    /// </summary>
     [ApiController]
     [Route("api/[controller]")]
-    [Authorize(Roles = "admin")]
-    public class AccountRoleController : ControllerBase
+    [Authorize(Roles = "Admin")]
+    public class AccountRoleController : BaseController<IAccountRoleService, AccountRoleDto>
     {
         private readonly IAccountRoleService _accountRoleService;
 
-        public AccountRoleController(IAccountRoleService accountRoleService)
+        public AccountRoleController(IAccountRoleService accountRoleService) : base(accountRoleService)
         {
             _accountRoleService = accountRoleService;
         }
 
         /// <summary>
-        /// Lấy danh sách tất cả các role
+        /// Lấy danh sách tất cả các role (CHỈ ADMIN)
         /// </summary>
-        [HttpGet]
-        [AllowAnonymous]
+        [HttpGet("all")]
         public async Task<IActionResult> GetAll()
         {
             try
@@ -45,10 +48,10 @@ namespace PawraBackend.Controllers
         }
 
         /// <summary>
-        /// Lấy thông tin role theo ID (Chỉ admin)
+        /// Lấy thông tin role theo ID (Chỉ admin) - Override từ BaseController
         /// </summary>
         [HttpGet("{id}")]
-        public async Task<IActionResult> GetById(Guid id)
+        public override async Task<IActionResult> Get(Guid id)
         {
             try
             {
@@ -71,9 +74,9 @@ namespace PawraBackend.Controllers
         }
 
         /// <summary>
-        /// Tạo role mới (Chỉ admin)
+        /// Tạo role mới (Chỉ admin) - Sử dụng CreateAccountRoleDto
         /// </summary>
-        [HttpPost]
+        [HttpPost("create")]
         public async Task<IActionResult> Create([FromBody] CreateAccountRoleDto dto)
         {
             try
@@ -89,7 +92,7 @@ namespace PawraBackend.Controllers
                 }
 
                 var role = await _accountRoleService.CreateAsync(dto);
-                return CreatedAtAction(nameof(GetById), new { id = role.Id }, new
+                return CreatedAtAction(nameof(Get), new { id = role.Id }, new
                 {
                     success = true,
                     message = "Tạo role thành công",
@@ -107,9 +110,9 @@ namespace PawraBackend.Controllers
         }
 
         /// <summary>
-        /// Cập nhật role (Chỉ admin)
+        /// Cập nhật role (Chỉ admin) - Sử dụng UpdateAccountRoleDto
         /// </summary>
-        [HttpPut("{id}")]
+        [HttpPut("update/{id}")]
         public async Task<IActionResult> Update(Guid id, [FromBody] UpdateAccountRoleDto dto)
         {
             try
@@ -143,10 +146,10 @@ namespace PawraBackend.Controllers
         }
 
         /// <summary>
-        /// Xóa role (Chỉ admin)
+        /// Xóa role (Chỉ admin) - Override từ BaseController
         /// </summary>
         [HttpDelete("{id}")]
-        public async Task<IActionResult> Delete(Guid id)
+        public override async Task<IActionResult> Delete(Guid id)
         {
             try
             {

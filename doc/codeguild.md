@@ -105,9 +105,180 @@ Pawra.DAL (Data Access)
 ```
 
 **❗ Quan trọng:** 
-- API chỉ gọi Services, KHÔNG gọi trực tiếp DbContext
-- Services chỉ gọi Repository/UnitOfWork, KHÔNG gọi DbContext trực tiếp
+- API chỉ gọi Services, KHÔNG gọi trực tiếp DbContext hoặc Repository
+- Services kế thừa BaseService và inject **UnitOfWork**
+  - Dùng UnitOfWork để truy cập Repositories
+  - Gọi `UnitOfWork.SaveChangesAsync()` sau mỗi thao tác write
+  - Hỗ trợ transactions qua UnitOfWork
+- Repository **KHÔNG** tự `SaveChanges()` - UnitOfWork quản lý
 - Controllers KHÔNG chứa business logic
+
+**Luồng dữ liệu:**
+```
+Controller → Service → UnitOfWork → Repository → DbContext → Database
+              ↓                ↓
+         Business Logic   SaveChanges()
+```
+
+---
+
+## 🗄️ Repository & UnitOfWork Pattern
+
+### Repository Pattern
+
+Repository cung cấp abstraction layer giữa business logic và data access.
+
+**Base Repository:**
+```csharp
+public class BaseRepository<T> : IRepository<T> where T : BaseEntity
+{
+    internal PawraDBContext dbContext;
+    internal DbSet<T> dbSet;
+
+    // CRUD operations KHÔNG tự SaveChanges
+    public async Task AddAsync(T entity)
+    {
+        await dbSet.AddAsync(entity);
+        // ❌ KHÔNG SaveChanges ở đây
+    }
+}
+```
+
+**Custom Repository:**
+```csharp
+// Interface
+public interface IAccountRoleRepository : IRepository<AccountRole>
+{
+    Task<bool> HasAccountsUsingRoleAsync(Guid roleId);
+    Task<bool> ExistsByNameAsync(string name, Guid? excludeId = null);
+}
+
+// Implementation
+public class AccountRoleRepository : BaseRepository<AccountRole>, IAccountRoleRepository
+{
+    public AccountRoleRepository(PawraDBContext dbContext) : base(dbContext)
+    {
+    }
+
+    public async Task<bool> HasAccountsUsingRoleAsync(Guid roleId)
+    {
+        // ✅ Repository có quyền truy cập dbContext
+        return await dbContext.Accounts.AnyAsync(a => a.RoleId == roleId);
+    }
+
+    public async Task<bool> ExistsByNameAsync(string name, Guid? excludeId = null)
+    {
+        var query = dbContext.AccountRoles.AsNoTracking()
+            .Where(r => r.Name.ToLower() == name.ToLower());
+
+        if (excludeId.HasValue)
+        {
+            query = query.Where(r => r.Id != excludeId.Value);
+        }
+
+        return await query.AnyAsync();
+    }
+}
+```
+
+### UnitOfWork Pattern
+
+UnitOfWork quản lý transactions và SaveChanges tập trung.
+
+**Interface:**
+```csharp
+public interface IUnitOfWork : IDisposable
+{
+    IRepository<T> Repository<T>() where T : BaseEntity;
+    IAccountRoleRepository AccountRoleRepository { get; }
+    Task<int> SaveChangesAsync();
+    Task BeginTransactionAsync();
+    Task CommitTransactionAsync();
+    Task RollbackTransactionAsync();
+}
+```
+
+**Implementation:**
+```csharp
+public class UnitOfWork : IUnitOfWork
+{
+    private readonly PawraDBContext _dbContext;
+    private IAccountRoleRepository? _accountRoleRepository;
+
+    public UnitOfWork(PawraDBContext dbContext)
+    {
+        _dbContext = dbContext;
+    }
+
+    // Lazy loading của custom repositories
+    public IAccountRoleRepository AccountRoleRepository
+    {
+        get
+        {
+            _accountRoleRepository ??= new AccountRoleRepository(_dbContext);
+            return _accountRoleRepository;
+        }
+    }
+
+    // Generic repository access
+    public IRepository<T> Repository<T>() where T : BaseEntity
+    {
+        return new BaseRepository<T>(_dbContext);
+    }
+
+    // Quản lý SaveChanges tập trung
+    public async Task<int> SaveChangesAsync()
+    {
+        return await _dbContext.SaveChangesAsync();
+    }
+}
+```
+
+**✅ Best Practices:**
+
+1. **Repository KHÔNG tự SaveChanges**
+   ```csharp
+   // ❌ SAI
+   public async Task AddAsync(T entity)
+   {
+       await dbSet.AddAsync(entity);
+       await dbContext.SaveChangesAsync(); // ❌
+   }
+
+   // ✅ ĐÚNG
+   public async Task AddAsync(T entity)
+   {
+       await dbSet.AddAsync(entity);
+       // Để UnitOfWork gọi SaveChanges
+   }
+   ```
+
+2. **Service luôn inject IUnitOfWork**
+   ```csharp
+   private readonly IUnitOfWork _unitOfWork;
+   ```
+
+3. **Gọi SaveChanges sau mỗi write operation**
+   ```csharp
+   await _unitOfWork.YourRepository.AddAsync(entity);
+   await _unitOfWork.SaveChangesAsync(); // ✅ Bắt buộc
+   ```
+
+4. **Dùng Transactions cho multiple operations**
+   ```csharp
+   await _unitOfWork.BeginTransactionAsync();
+   try
+   {
+       // Multiple operations
+       await _unitOfWork.SaveChangesAsync();
+       await _unitOfWork.CommitTransactionAsync();
+   }
+   catch
+   {
+       await _unitOfWork.RollbackTransactionAsync();
+       throw;
+   }
+   ```
 
 ---
 
@@ -206,28 +377,34 @@ public class RegisterRequestDto
 
 ### Service Structure
 
-```csharp
-public class AccountRoleService : IAccountRoleService
-{
-    private readonly PawraDBContext _context;
-    private readonly IMapper _mapper;
+Tất cả services nên kế thừa từ `BaseService<TEntity, TDto>` và inject **IUnitOfWork** để tận dụng CRUD operations sẵn có:
 
-    public AccountRoleService(PawraDBContext context, IMapper mapper)
+```csharp
+public class AccountRoleService : BaseService<AccountRole, AccountRoleDto>, IAccountRoleService
+{
+    private readonly IUnitOfWork _unitOfWork;
+
+    public AccountRoleService(IUnitOfWork unitOfWork, IMapper mapper) 
+        : base(unitOfWork.AccountRoleRepository, mapper)
     {
-        _context = context;
-        _mapper = mapper;
+        _unitOfWork = unitOfWork;
     }
 
-    public async Task<AccountRoleDto> GetByIdAsync(Guid id)
+    public async Task<AccountRoleDto> CreateAsync(CreateAccountRoleDto dto)
     {
-        var role = await _context.AccountRoles
-            .AsNoTracking()
-            .FirstOrDefaultAsync(r => r.Id == id);
-
-        if (role == null)
+        // Business validation
+        var exists = await _unitOfWork.AccountRoleRepository.ExistsByNameAsync(dto.Name);
+        if (exists)
         {
-            throw new NotFoundException($"Không tìm thấy role với ID: {id}");
+            throw new Exception($"Role '{dto.Name}' đã tồn tại trong hệ thống");
         }
+
+        // Create entity
+        var role = _mapper.Map<AccountRole>(dto);
+        await _unitOfWork.AccountRoleRepository.AddAsync(role);
+        
+        // ✅ SaveChanges qua UnitOfWork
+        await _unitOfWork.SaveChangesAsync();
 
         return _mapper.Map<AccountRoleDto>(role);
     }
@@ -236,43 +413,82 @@ public class AccountRoleService : IAccountRoleService
 
 **✅ Best Practices:**
 
-1. **Async/Await**: Tất cả methods phải async
+1. **Kế thừa BaseService**: Tận dụng CRUD operations có sẵn
    ```csharp
-   public async Task<IEnumerable<AccountRoleDto>> GetAllAsync()
+   public class YourService : BaseService<YourEntity, YourDto>, IYourService
    ```
 
-2. **AsNoTracking**: Dùng cho read-only queries
+2. **Inject IUnitOfWork**: CHỈ inject UnitOfWork, KHÔNG inject DbContext
    ```csharp
-   .AsNoTracking()
+   private readonly IUnitOfWork _unitOfWork;
+   public YourService(IUnitOfWork unitOfWork, IMapper mapper)
    ```
 
-3. **Include/ThenInclude**: Load related data
+3. **Truy cập Repository qua UnitOfWork**:
    ```csharp
-   .Include(a => a.Role)
-   .ThenInclude(r => r.Permissions)
+   await _unitOfWork.YourRepository.GetByIdAsync(id);
+   await _unitOfWork.Repository<YourEntity>().GetAllAsync();
    ```
 
-4. **AutoMapper**: Dùng mapper thay vì manual mapping
+4. **Luôn gọi SaveChanges sau write operations**:
+   ```csharp
+   await _unitOfWork.YourRepository.AddAsync(entity);
+   await _unitOfWork.SaveChangesAsync(); // ✅ Bắt buộc
+   ```
+
+5. **Sử dụng Transactions cho multiple operations**:
+   ```csharp
+   await _unitOfWork.BeginTransactionAsync();
+   try
+   {
+       await _unitOfWork.YourRepository.AddAsync(entity1);
+       await _unitOfWork.AnotherRepository.AddAsync(entity2);
+       await _unitOfWork.SaveChangesAsync();
+       await _unitOfWork.CommitTransactionAsync();
+   }
+   catch
+   {
+       await _unitOfWork.RollbackTransactionAsync();
+       throw;
+   }
+   ```
+
+6. **AutoMapper**: Dùng `_mapper` từ BaseService
    ```csharp
    return _mapper.Map<AccountRoleDto>(role);
    ```
 
-5. **Exception Handling**: Throw custom exceptions
+7. **Exception Handling**: Throw custom exceptions
    ```csharp
    throw new NotFoundException($"Không tìm thấy...");
    ```
 
-6. **Business Validation**: Validate logic trong service
+8. **Business Validation**: Validate logic trong service
    ```csharp
-   // Kiểm tra trùng
-   var exists = await _context.AccountRoles
-       .AnyAsync(r => r.Name.ToLower() == dto.Name.ToLower());
-   
+   var exists = await _unitOfWork.YourRepository.ExistsByNameAsync(name);
    if (exists)
    {
-       throw new Exception("Role đã tồn tại");
+       throw new Exception("Entity đã tồn tại");
    }
    ```
+
+### BaseService Methods
+
+BaseService cung cấp các methods cơ bản:
+
+```csharp
+// CRUD operations có sẵn từ BaseService
+Task<TDto> Create(TDto dto);
+Task<List<TDto>> Read(int pageSize, int pageNumber);
+Task<TDto> Read(Guid id);
+Task Update(TDto dto);
+Task Delete(Guid id);
+```
+
+Bạn có thể:
+- **Override** để customize behavior
+- **Thêm methods mới** cho business logic phức tạp
+- **Sử dụng trực tiếp** các methods có sẵn
 
 ---
 
@@ -280,23 +496,29 @@ public class AccountRoleService : IAccountRoleService
 
 ### Controller Structure
 
+Tất cả controllers nên kế thừa từ `BaseController<TService, TDto>` để tận dụng CRUD endpoints có sẵn:
+
 ```csharp
+/// <summary>
+/// Controller quản lý Account Roles - kế thừa BaseController
+/// </summary>
 [ApiController]
 [Route("api/[controller]")]
 [Authorize(Roles = "admin")]  // Authorization tại controller level
-public class AccountRoleController : ControllerBase
+public class AccountRoleController : BaseController<IAccountRoleService, AccountRoleDto>
 {
     private readonly IAccountRoleService _accountRoleService;
 
-    public AccountRoleController(IAccountRoleService accountRoleService)
+    public AccountRoleController(IAccountRoleService accountRoleService) : base(accountRoleService)
     {
         _accountRoleService = accountRoleService;
     }
 
     /// <summary>
-    /// Lấy danh sách tất cả các role
+    /// Lấy danh sách tất cả các role (Public endpoint)
     /// </summary>
-    [HttpGet]
+    [HttpGet("all")]
+    [AllowAnonymous]
     public async Task<IActionResult> GetAll()
     {
         try
@@ -320,29 +542,92 @@ public class AccountRoleController : ControllerBase
     }
 
     /// <summary>
-    /// Tạo role mới (Chỉ admin)
+    /// Override method từ BaseController để custom response
     /// </summary>
-    [HttpPost]
-    public async Task<IActionResult> Create([FromBody] CreateAccountRoleDto dto)
+    [HttpGet("{id}")]
+    public override async Task<IActionResult> Get(Guid id)
     {
-        if (!ModelState.IsValid)
+        try
         {
-            return BadRequest(new
+            var role = await _accountRoleService.GetByIdAsync(id);
+            return Ok(new
             {
-                success = false,
-                message = "Dữ liệu không hợp lệ",
-                errors = ModelState
+                success = true,
+                message = "Lấy thông tin role thành công",
+                data = role
             });
         }
-
-        var role = await _accountRoleService.CreateAsync(dto);
-        return CreatedAtAction(nameof(GetById), new { id = role.Id }, new
+        catch (Exception ex)
         {
-            success = true,
-            message = "Tạo role thành công",
-            data = role
-        });
+            return NotFound(new { success = false, message = ex.Message });
+        }
     }
+}
+```
+
+**✅ Best Practices:**
+
+1. **Kế thừa BaseController**: Tận dụng CRUD endpoints có sẵn
+   ```csharp
+   public class YourController : BaseController<IYourService, YourDto>
+   ```
+
+2. **Constructor injection**: Call base constructor
+   ```csharp
+   public YourController(IYourService service) : base(service)
+   ```
+
+3. **Override khi cần**: Override methods từ BaseController để customize
+   ```csharp
+   public override async Task<IActionResult> Get(Guid id)
+   ```
+
+4. **Thêm custom endpoints**: Thêm routes mới với tên rõ ràng
+   ```csharp
+   [HttpGet("all")]  // /api/yourcontroller/all
+   [HttpPost("create")]  // /api/yourcontroller/create
+   ```
+
+5. **XML Comments**: Luôn thêm XML documentation
+   ```csharp
+   /// <summary>
+   /// Mô tả endpoint
+   /// </summary>
+   ```
+
+6. **ModelState validation**: Kiểm tra dữ liệu đầu vào
+   ```csharp
+   if (!ModelState.IsValid)
+   {
+       return BadRequest(new { success = false, message = "Dữ liệu không hợp lệ", errors = ModelState });
+   }
+   ```
+
+### BaseController Endpoints
+
+BaseController tự động cung cấp các endpoints:
+
+| Method | Route | Description |
+|--------|-------|-------------|
+| `POST` | `/api/[controller]` | Create mới (dùng dto từ BaseService) |
+| `GET` | `/api/[controller]?pageSize=100&pageNumber=1` | Get list với pagination |
+| `GET` | `/api/[controller]/{id}` | Get by Id |
+| `PUT` | `/api/[controller]` | Update (dùng dto từ BaseService) |
+| `DELETE` | `/api/[controller]/{id}` | Delete by Id |
+
+**Lưu ý**: Endpoints từ BaseController dùng generic DTO. Để dùng Create/Update DTOs cụ thể, tạo custom endpoints:
+
+```csharp
+[HttpPost("create")]
+public async Task<IActionResult> Create([FromBody] CreateAccountRoleDto dto)
+{
+    // Custom logic với CreateDto
+}
+
+[HttpPut("update/{id}")]
+public async Task<IActionResult> Update(Guid id, [FromBody] UpdateAccountRoleDto dto)
+{
+    // Custom logic với UpdateDto
 }
 ```
 
@@ -782,10 +1067,16 @@ feat: thêm API CRUD cho AccountRole
 
 - [ ] Code đã build thành công (`dotnet build`)
 - [ ] Đã test các API endpoints
+- [ ] Services ONLY inject IUnitOfWork (NEVER DbContext directly)
+- [ ] Repository methods do NOT call SaveChanges
+- [ ] Service methods call `await _unitOfWork.SaveChangesAsync()` after repository operations
+- [ ] Custom repositories are registered with their interfaces in Program.cs
+- [ ] Repositories are added to IUnitOfWork and UnitOfWork implementation
 - [ ] Đã update MappingProfile nếu thêm DTOs mới
 - [ ] Đã thêm XML comments cho controller actions
 - [ ] Đã xóa console.log/debug code
 - [ ] Đã validate ModelState trong controller
+- [ ] Follow proper layering: Controller → Service → UnitOfWork → Repository → DbContext
 
 ---
 
@@ -832,23 +1123,146 @@ CreateMap<CreateNewEntityDto, NewEntity>();
 CreateMap<UpdateNewEntityDto, NewEntity>();
 ```
 
-### 6. Tạo Service
+### 6. Tạo Repository Interface (nếu cần custom methods)
+
+```csharp
+// Pawra.DAL/Interfaces/INewEntityRepository.cs
+public interface INewEntityRepository : IRepository<NewEntity>
+{
+    // Thêm custom methods nếu cần
+    Task<IEnumerable<NewEntity>> GetActiveEntitiesAsync();
+    Task<bool> ExistsByNameAsync(string name);
+}
+```
+
+### 7. Tạo Repository Implementation (nếu cần custom methods)
+
+```csharp
+// Pawra.DAL/Repository/NewEntityRepository.cs
+public class NewEntityRepository : BaseRepository<NewEntity>, INewEntityRepository
+{
+    public NewEntityRepository(PawraDBContext context) : base(context)
+    {
+    }
+
+    public async Task<IEnumerable<NewEntity>> GetActiveEntitiesAsync()
+    {
+        return await _dbSet
+            .Where(e => e.IsActive)
+            .ToListAsync();
+    }
+
+    public async Task<bool> ExistsByNameAsync(string name)
+    {
+        return await _dbSet.AnyAsync(e => e.Name == name);
+    }
+}
+```
+
+### 8. Update IUnitOfWork Interface
+
+```csharp
+// Pawra.DAL/UnitOfWork/IUnitOfWork.cs
+public interface IUnitOfWork : IDisposable
+{
+    IAccountRoleRepository AccountRoleRepository { get; }
+    INewEntityRepository NewEntityRepository { get; } // ✅ Add this
+    
+    Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
+    Task BeginTransactionAsync();
+    Task CommitTransactionAsync();
+    Task RollbackTransactionAsync();
+}
+```
+
+### 9. Update UnitOfWork Implementation
+
+```csharp
+// Pawra.DAL/UnitOfWork/UnitOfWork.cs
+public class UnitOfWork : IUnitOfWork
+{
+    private readonly PawraDBContext _context;
+    private IAccountRoleRepository? _accountRoleRepository;
+    private INewEntityRepository? _newEntityRepository; // ✅ Add this
+    
+    public IAccountRoleRepository AccountRoleRepository => 
+        _accountRoleRepository ??= new AccountRoleRepository(_context);
+    
+    public INewEntityRepository NewEntityRepository => 
+        _newEntityRepository ??= new NewEntityRepository(_context); // ✅ Add this
+}
+```
+
+### 10. Tạo Service Interface
 
 ```csharp
 // Pawra.BLL/Interfaces/INewEntityService.cs
-// Pawra.BLL/Service/NewEntityService.cs
+public interface INewEntityService : IService<NewEntity, NewEntityDto>
+{
+    Task<IEnumerable<NewEntityDto>> GetAllAsync();
+    Task<NewEntityDto> GetByIdAsync(Guid id);
+    Task<NewEntityDto> CreateAsync(CreateNewEntityDto dto);
+    Task<NewEntityDto> UpdateAsync(Guid id, UpdateNewEntityDto dto);
+    Task<bool> DeleteAsync(Guid id);
+}
 ```
 
-### 7. Tạo Controller
+### 11. Tạo Service Implementation (MUST use UnitOfWork)
+
+```csharp
+// Pawra.BLL/Service/NewEntityService.cs
+public class NewEntityService : BaseService<NewEntity, NewEntityDto>, INewEntityService
+{
+    private readonly IUnitOfWork _unitOfWork;
+
+    public NewEntityService(IUnitOfWork unitOfWork, IMapper mapper) 
+        : base(unitOfWork.NewEntityRepository, mapper)
+    {
+        _unitOfWork = unitOfWork;
+    }
+    
+    public async Task<NewEntityDto> CreateAsync(CreateNewEntityDto dto)
+    {
+        var entity = _mapper.Map<NewEntity>(dto);
+        
+        // Validate uniqueness
+        if (await _unitOfWork.NewEntityRepository.ExistsByNameAsync(entity.Name))
+        {
+            throw new ValidationException("Tên đã tồn tại");
+        }
+        
+        await _unitOfWork.NewEntityRepository.AddAsync(entity);
+        await _unitOfWork.SaveChangesAsync(); // ✅ MUST call SaveChanges
+        
+        return _mapper.Map<NewEntityDto>(entity);
+    }
+}
+```
+
+### 12. Tạo Controller
 
 ```csharp
 // PawraBackend/Controllers/NewEntityController.cs
+[ApiController]
+[Route("api/[controller]")]
+public class NewEntityController : BaseController<INewEntityService, NewEntityDto>
+{
+    public NewEntityController(INewEntityService service) : base(service)
+    {
+    }
+    
+    // Custom endpoints nếu cần
+}
 ```
 
-### 8. Register Service
+### 13. Register Services trong Program.cs
 
 ```csharp
 // PawraBackend/Program.cs
+// ✅ Register Repository (nếu có custom repository)
+builder.Services.AddScoped<INewEntityRepository, NewEntityRepository>();
+
+// ✅ Register Service
 builder.Services.AddScoped<INewEntityService, NewEntityService>();
 ```
 
@@ -914,19 +1328,24 @@ Content-Type: application/json
 
 ### 1. Async/Await Pattern
 ```csharp
-// ✅ Good
+// ✅ Good - Service uses UnitOfWork
+public async Task<AccountRoleDto> GetByIdAsync(Guid id)
+{
+    var role = await _unitOfWork.AccountRoleRepository.GetByIdAsync(id);
+    if (role == null)
+    {
+        throw new NotFoundException($"Không tìm thấy role với ID: {id}");
+    }
+    return _mapper.Map<AccountRoleDto>(role);
+}
+
+// ❌ Bad - Direct DbContext access
 public async Task<AccountRoleDto> GetByIdAsync(Guid id)
 {
     var role = await _context.AccountRoles.FindAsync(id);
     return _mapper.Map<AccountRoleDto>(role);
 }
-
-// ❌ Bad
-public AccountRoleDto GetById(Guid id)
-{
-    var role = _context.AccountRoles.Find(id);
-    return _mapper.Map<AccountRoleDto>(role);
-}
+```
 ```
 
 ### 2. Null Checking
@@ -952,24 +1371,270 @@ using AutoMapper;
 var context = new Pawra.DAL.PawraDBContext();
 ```
 
-### 4. Dependency Injection
+### 4. Transaction Management with UnitOfWork
 ```csharp
-// ✅ Good - Constructor injection
-private readonly IMapper _mapper;
-public AccountRoleService(IMapper mapper)
+// ✅ Good - Explicit transaction for complex operations
+public async Task<AccountRoleDto> CreateWithAccountsAsync(CreateAccountRoleDto dto)
 {
-    _mapper = mapper;
+    await _unitOfWork.BeginTransactionAsync();
+    try
+    {
+        var role = _mapper.Map<AccountRole>(dto);
+        await _unitOfWork.AccountRoleRepository.AddAsync(role);
+        await _unitOfWork.SaveChangesAsync();
+        
+        // More operations...
+        
+        await _unitOfWork.CommitTransactionAsync();
+        return _mapper.Map<AccountRoleDto>(role);
+    }
+    catch
+    {
+        await _unitOfWork.RollbackTransactionAsync();
+        throw;
+    }
 }
 
-// ❌ Bad - New instance
-var mapper = new Mapper(config);
+// ❌ Bad - SaveChanges in repository
+public async Task AddAsync(AccountRole entity)
+{
+    await _dbSet.AddAsync(entity);
+    await _context.SaveChangesAsync(); // ❌ NEVER do this in repository
+}
+```
+
+### 5. Service Layer Separation
+```csharp
+// ✅ Good - Service uses UnitOfWork only
+public class AccountRoleService : BaseService<AccountRole, AccountRoleDto>, IAccountRoleService
+{
+    private readonly IUnitOfWork _unitOfWork;
+    
+    public AccountRoleService(IUnitOfWork unitOfWork, IMapper mapper) 
+        : base(unitOfWork.AccountRoleRepository, mapper)
+    {
+        _unitOfWork = unitOfWork;
+    }
+}
+
+// ❌ Bad - Service directly injects DbContext
+public class AccountRoleService : BaseService<AccountRole, AccountRoleDto>, IAccountRoleService
+{
+    private readonly PawraDBContext _context; // ❌ NEVER inject DbContext in Service
+    
+    public AccountRoleService(PawraDBContext context, IMapper mapper)
+    {
+        _context = context;
+    }
+}
 ```
 
 ---
 
 ## 🆘 Common Issues
 
-### Issue 1: Version Conflict with AutoMapper
+### Issue 1: Forgot to call SaveChangesAsync
+```
+Error: Changes not persisted to database
+```
+**Solution:** MUST call `await _unitOfWork.SaveChangesAsync()` after repository operations:
+```csharp
+// ✅ Correct
+await _unitOfWork.AccountRoleRepository.AddAsync(role);
+await _unitOfWork.SaveChangesAsync(); // ✅ MUST call this
+
+// ❌ Wrong - Changes won't be saved
+await _unitOfWork.AccountRoleRepository.AddAsync(role);
+// Missing SaveChangesAsync() ❌
+```
+
+### Issue 2: Repository calling SaveChanges
+```
+Error: SaveChanges called multiple times
+```
+**Solution:** Repository should NEVER call SaveChanges - only UnitOfWork should:
+```csharp
+// ✅ Good - Repository
+public async Task AddAsync(AccountRole entity)
+{
+    await _dbSet.AddAsync(entity);
+    // NO SaveChanges here ✅
+}
+
+// ❌ Bad - Repository calling SaveChanges
+public async Task AddAsync(AccountRole entity)
+{
+    await _dbSet.AddAsync(entity);
+    await _context.SaveChangesAsync(); // ❌ NEVER do this
+}
+```
+
+### Issue 3: Service injecting DbContext directly
+```
+Error: Architecture violation - layering broken
+```
+**Solution:** Services should ONLY inject IUnitOfWork, never DbContext:
+```csharp
+// ✅ Good
+public class AccountRoleService : BaseService<AccountRole, AccountRoleDto>
+{
+    private readonly IUnitOfWork _unitOfWork;
+    
+    public AccountRoleService(IUnitOfWork unitOfWork, IMapper mapper) 
+        : base(unitOfWork.AccountRoleRepository, mapper)
+    {
+        _unitOfWork = unitOfWork;
+    }
+}
+
+// ❌ Bad
+public class AccountRoleService
+{
+    private readonly PawraDBContext _context; // ❌ NEVER inject DbContext
+    
+    public AccountRoleService(PawraDBContext context, IMapper mapper)
+    {
+        _context = context;
+    }
+}
+```
+
+### Issue 4: Invalid salt version (BCrypt)
+```
+Error: Invalid salt version
+```
+**Nguyên nhân:** Password trong database không phải BCrypt hash hợp lệ (plain text hoặc hash sai format)
+
+**Solution:**
+```csharp
+// ✅ ĐÚNG - Hash password với BCrypt khi seed data
+if (!context.Accounts.Any(a => a.Id == adminAccountId))
+{
+    var adminAccount = new Account
+    {
+        Email = "admin@pawra.com",
+        FullName = "Admin",
+        PasswordHash = BCrypt.Net.BCrypt.HashPassword("Admin@123"), // ✅ MUST hash
+        RoleId = adminRoleId
+    };
+    context.Accounts.Add(adminAccount);
+}
+
+// ❌ SAI - Plain text password
+PasswordHash = "hashedpassword123" // ❌ This is NOT a valid BCrypt hash
+```
+
+**Fix:** Drop database và tạo lại với password đã hash đúng:
+```bash
+dotnet ef database drop --force --project Pawra.DAL --startup-project PawraBackend
+dotnet ef database update --project Pawra.DAL --startup-project PawraBackend
+```
+
+### Issue 5: JWT Token không được parse (401 Unauthorized)
+```
+Error: JWT Token: NULL/EMPTY
+JWT Challenge - Error: '', ErrorDescription: '', AuthFailure:
+```
+**Nguyên nhân:** Authorization header có format sai (có dấu quotes hoặc middleware không extract được token)
+
+**Giải pháp:** Thêm custom token extraction trong JWT configuration:
+```csharp
+// Program.cs - JWT Events
+options.Events = new JwtBearerEvents
+{
+    OnMessageReceived = context =>
+    {
+        var authHeader = context.Request.Headers["Authorization"].ToString();
+        if (!string.IsNullOrEmpty(authHeader))
+        {
+            var token = authHeader;
+            // Remove 'Bearer ' prefix (case-insensitive)
+            if (token.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+            {
+                token = token.Substring(7);
+            }
+            // Remove quotes if they exist
+            token = token.Trim('\'', '"', ' ');
+            
+            if (!string.IsNullOrEmpty(token) && token.Contains("."))
+            {
+                context.Token = token;
+            }
+        }
+        return Task.CompletedTask;
+    }
+};
+```
+
+**Debug JWT Issues:**
+```csharp
+// Thêm logging để debug
+options.Events = new JwtBearerEvents
+{
+    OnMessageReceived = context =>
+    {
+        Console.WriteLine($"Auth Header: {context.Request.Headers["Authorization"]}");
+        Console.WriteLine($"Token: {context.Token ?? "NULL"}");
+        return Task.CompletedTask;
+    },
+    OnAuthenticationFailed = context =>
+    {
+        Console.WriteLine($"Auth Failed: {context.Exception.Message}");
+        return Task.CompletedTask;
+    },
+    OnTokenValidated = context =>
+    {
+        var claims = context.Principal?.Claims.Select(c => $"{c.Type}: {c.Value}");
+        Console.WriteLine($"Claims: {string.Join(", ", claims ?? Array.Empty<string>())}");
+        return Task.CompletedTask;
+    }
+};
+```
+
+**Common Authorization header formats:**
+```bash
+# ✅ Đúng - Swagger tự động thêm "Bearer "
+Authorization: Bearer eyJhbGci...
+
+# ❌ Sai - Có quotes quanh Bearer
+Authorization: 'Bearer' eyJhbGci...
+
+# ❌ Sai - Chỉ có token không có Bearer
+Authorization: eyJhbGci...
+```
+
+### Issue 6: JWT Role Authorization không hoạt động
+```
+403 Forbidden (có token nhưng vẫn bị từ chối)
+```
+**Nguyên nhân:** Role claim type không được map đúng
+
+**Solution:** Thêm RoleClaimType vào TokenValidationParameters:
+```csharp
+options.TokenValidationParameters = new TokenValidationParameters
+{
+    ValidateIssuer = true,
+    ValidateAudience = true,
+    ValidateLifetime = true,
+    ValidateIssuerSigningKey = true,
+    ValidIssuer = builder.Configuration["JwtSettings:Issuer"],
+    ValidAudience = builder.Configuration["JwtSettings:Audience"],
+    IssuerSigningKey = new SymmetricSecurityKey(key),
+    RoleClaimType = System.Security.Claims.ClaimTypes.Role, // ✅ MUST add this
+    NameClaimType = System.Security.Claims.ClaimTypes.Name
+};
+```
+
+**Lưu ý:** Role name trong `[Authorize(Roles = "Admin")]` phải khớp chính xác (case-sensitive) với role trong database:
+```csharp
+// ✅ Đúng - Match với database
+[Authorize(Roles = "Admin")]  // Database: "Admin"
+
+// ❌ Sai - Case không khớp
+[Authorize(Roles = "admin")]  // Database: "Admin" (will fail)
+```
+
+### Issue 7: Version Conflict with AutoMapper
 ```
 Error: Version conflict detected for AutoMapper
 ```
@@ -979,7 +1644,7 @@ Error: Version conflict detected for AutoMapper
 <PackageReference Include="AutoMapper.Extensions.Microsoft.DependencyInjection" Version="12.0.1" />
 ```
 
-### Issue 2: JWT Token không hoạt động
+### Issue 8: JWT Token không hoạt động
 ```
 401 Unauthorized
 ```
@@ -989,7 +1654,7 @@ Error: Version conflict detected for AutoMapper
 - [ ] Token chưa expired
 - [ ] Claims trong token đúng với role required
 
-### Issue 3: Migration lỗi
+### Issue 9: Migration lỗi
 ```
 Unable to create migration
 ```
@@ -1015,4 +1680,4 @@ Nếu có thắc mắc hoặc issue, liên hệ:
 
 **Happy Coding! 🚀**
 
-*Last Updated: December 22, 2025*
+*Last Updated: January 8, 2026*

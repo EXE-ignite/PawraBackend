@@ -64,7 +64,15 @@ Authorization: Bearer {{token}}
 
 ###
 
-### 7. Get Profile với token trực tiếp (Alternative)
+### 7. Get All Account Roles (Chỉ Admin)
+# Sau khi login admin, copy token và paste vào variable @token
+GET {{baseUrl}}/api/accountrole/all
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+###
+
+### 8. Get Profile với token trực tiếp (Alternative)
 GET {{baseUrl}}/api/auth/profile
 Content-Type: application/json
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...

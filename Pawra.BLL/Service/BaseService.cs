@@ -1,7 +1,7 @@
 ﻿using AutoMapper;
-using Pawra.DAL.Repository;
 using Pawra.BLL.Interfaces;
 using Pawra.DAL.Entities;
+using Pawra.DAL.Interfaces;
 
 namespace Pawra.BLL.Services
 {
@@ -9,10 +9,10 @@ namespace Pawra.BLL.Services
         where TEntity : BaseEntity
         where TDto : class
     {
-        private readonly BaseRepository<TEntity> _repository;
-        private readonly IMapper _mapper;
+        protected readonly IRepository<TEntity> _repository;
+        protected readonly IMapper _mapper;
 
-        public BaseService(BaseRepository<TEntity> repository, IMapper mapper)
+        public BaseService(IRepository<TEntity> repository, IMapper mapper)
         {
             _repository = repository;
             _mapper = mapper;
@@ -23,11 +23,7 @@ namespace Pawra.BLL.Services
             if (dto == null)
                 throw new ArgumentNullException(nameof(dto));
 
-            // Reset Id if exists
-            var idProp = typeof(TDto).GetProperty("Id");
-            if (idProp != null && (int)idProp.GetValue(dto)! != 0)
-                idProp.SetValue(dto, 0);
-
+            // Reset Id if exists - Guid is auto-generated, no need to reset
             var entity = _mapper.Map<TEntity>(dto);
             var newEntity = await _repository.Create(entity);
             return _mapper.Map<TDto>(newEntity);
@@ -39,7 +35,7 @@ namespace Pawra.BLL.Services
             return _mapper.Map<List<TDto>>(entities);
         }
 
-        public virtual async Task<TDto> Read(int id)
+        public virtual async Task<TDto> Read(Guid id)
         {
             var entity = await _repository.Read(id);
             if (entity == null)
@@ -54,7 +50,7 @@ namespace Pawra.BLL.Services
             if (idProp == null)
                 throw new InvalidOperationException("DTO must have an Id property.");
 
-            int id = (int)idProp.GetValue(dto)!;
+            Guid id = (Guid)idProp.GetValue(dto)!;
             var existing = await _repository.Read(id);
             if (existing == null)
                 throw new KeyNotFoundException("Entity not found.");
@@ -63,7 +59,7 @@ namespace Pawra.BLL.Services
             await _repository.Update(entity);
         }
 
-        public virtual async Task Delete(int id)
+        public virtual async Task Delete(Guid id)
         {
             var entity = await _repository.Read(id);
             if (entity == null)

@@ -10,11 +10,21 @@ namespace Pawra.DAL.UnitOfWork
         private readonly PawraDBContext _dbContext;
         private readonly Dictionary<Type, object> _repositories;
         private IDbContextTransaction? _transaction;
+        private IAccountRoleRepository? _accountRoleRepository;
 
         public UnitOfWork(PawraDBContext dbContext)
         {
             _dbContext = dbContext;
             _repositories = new Dictionary<Type, object>();
+        }
+
+        public IAccountRoleRepository AccountRoleRepository
+        {
+            get
+            {
+                _accountRoleRepository ??= new AccountRoleRepository(_dbContext);
+                return _accountRoleRepository;
+            }
         }
 
         public IRepository<T> Repository<T>() where T : BaseEntity

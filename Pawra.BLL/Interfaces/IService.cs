@@ -6,8 +6,8 @@ namespace Pawra.BLL.Interfaces
     {
         Task<TDto> Create(TDto dto);
         Task<List<TDto>> Read(int pageSize, int pageNumber);
-        Task<TDto> Read(int id);
+        Task<TDto> Read(Guid id);
         Task Update(TDto dto);
-        Task Delete(int id);
+        Task Delete(Guid id);
     }
 }

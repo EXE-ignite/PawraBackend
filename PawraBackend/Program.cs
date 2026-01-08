@@ -6,6 +6,7 @@ using Pawra.BLL.Interfaces;
 using Pawra.BLL.Service;
 using Pawra.DAL;
 using Pawra.DAL.Data;
+using Pawra.DAL.Repository;
 using System.Text;
 
 namespace PawraBackend
@@ -46,7 +47,58 @@ namespace PawraBackend
                     ValidateIssuerSigningKey = true,
                     ValidIssuer = builder.Configuration["JwtSettings:Issuer"],
                     ValidAudience = builder.Configuration["JwtSettings:Audience"],
-                    IssuerSigningKey = new SymmetricSecurityKey(key)
+                    IssuerSigningKey = new SymmetricSecurityKey(key),
+                    RoleClaimType = System.Security.Claims.ClaimTypes.Role,
+                    NameClaimType = System.Security.Claims.ClaimTypes.Name
+                };
+
+                // Debug logging for JWT events
+                options.Events = new JwtBearerEvents
+                {
+                    OnMessageReceived = context =>
+                    {
+                        var authHeader = context.Request.Headers["Authorization"].ToString();
+                        Console.WriteLine($"JWT Message Received. Auth Header: {authHeader}");
+                        
+                        // Custom token extraction
+                        if (!string.IsNullOrEmpty(authHeader))
+                        {
+                            // Remove 'Bearer ' prefix if exists (case-insensitive)
+                            var token = authHeader;
+                            if (token.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+                            {
+                                token = token.Substring(7);
+                            }
+                            // Remove quotes if they exist
+                            token = token.Trim('\'', '"', ' ');
+                            
+                            if (!string.IsNullOrEmpty(token) && token.Contains("."))
+                            {
+                                context.Token = token;
+                                Console.WriteLine($"JWT Token extracted: {token.Substring(0, Math.Min(50, token.Length))}...");
+                            }
+                        }
+                        
+                        Console.WriteLine($"JWT Token final: {(string.IsNullOrEmpty(context.Token) ? "NULL/EMPTY" : "SET")}");
+                        return Task.CompletedTask;
+                    },
+                    OnAuthenticationFailed = context =>
+                    {
+                        Console.WriteLine($"JWT Authentication Failed: {context.Exception.Message}");
+                        Console.WriteLine($"JWT Exception Stack: {context.Exception.StackTrace}");
+                        return Task.CompletedTask;
+                    },
+                    OnTokenValidated = context =>
+                    {
+                        var claims = context.Principal?.Claims.Select(c => $"{c.Type}: {c.Value}");
+                        Console.WriteLine($"JWT Token Validated. Claims: {string.Join(", ", claims ?? Array.Empty<string>())}");
+                        return Task.CompletedTask;
+                    },
+                    OnChallenge = context =>
+                    {
+                        Console.WriteLine($"JWT Challenge - Error: '{context.Error}', ErrorDescription: '{context.ErrorDescription}', AuthFailure: {context.AuthenticateFailure?.Message}");
+                        return Task.CompletedTask;
+                    }
                 };
             });
 
@@ -54,6 +106,13 @@ namespace PawraBackend
 
             // AutoMapper Configuration
             builder.Services.AddAutoMapper(typeof(Pawra.BLL.Mappings.MappingProfile));
+
+            // Register UnitOfWork
+            builder.Services.AddScoped<Pawra.DAL.Interfaces.IUnitOfWork, Pawra.DAL.UnitOfWork.UnitOfWork>();
+
+            // Register Repositories (optional - if used directly)
+            builder.Services.AddScoped(typeof(BaseRepository<>));
+            builder.Services.AddScoped<Pawra.DAL.Interfaces.IAccountRoleRepository, Pawra.DAL.Repository.AccountRoleRepository>();
 
             // Register Services
             builder.Services.AddScoped<IAuthService, AuthService>();

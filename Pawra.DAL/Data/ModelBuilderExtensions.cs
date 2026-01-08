@@ -78,7 +78,8 @@ namespace Pawra.DAL.Data
                 {
                     Email = "admin@pawra.com",
                     FullName = "Admin",
-                    PasswordHash = "hashedpassword123",
+                    // Password: Admin@123
+                    PasswordHash = BCrypt.Net.BCrypt.HashPassword("Admin@123"),
                     RoleId = adminRoleId
                 };
 

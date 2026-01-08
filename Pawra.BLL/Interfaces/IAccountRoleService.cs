@@ -1,8 +1,9 @@
 using Pawra.BLL.DTOs;
+using Pawra.DAL.Entities;
 
 namespace Pawra.BLL.Interfaces
 {
-    public interface IAccountRoleService
+    public interface IAccountRoleService : IService<AccountRole, AccountRoleDto>
     {
         Task<IEnumerable<AccountRoleDto>> GetAllAsync();
         Task<AccountRoleDto> GetByIdAsync(Guid id);

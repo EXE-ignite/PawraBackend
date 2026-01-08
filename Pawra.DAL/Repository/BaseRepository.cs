@@ -60,13 +60,11 @@ namespace Pawra.DAL.Repository
         public async Task AddAsync(T entity)
         {
             await dbSet.AddAsync(entity);
-            await dbContext.SaveChangesAsync();
         }
 
         public async Task UpdateAsync(T entity)
         {
             dbSet.Update(entity);
-            await dbContext.SaveChangesAsync();
         }
 
         public async Task DeleteAsync(Guid id)
@@ -75,7 +73,6 @@ namespace Pawra.DAL.Repository
             if (entity != null)
             {
                 dbSet.Remove(entity);
-                await dbContext.SaveChangesAsync();
             }
         }
 
@@ -88,14 +85,12 @@ namespace Pawra.DAL.Repository
         public virtual async Task<T> Create(T entity)
         {
             await dbSet.AddAsync(entity);
-            await dbContext.SaveChangesAsync();
             return entity;
         }
 
         public virtual async Task Update(T entity)
         {
             dbSet.Update(entity);
-            await dbContext.SaveChangesAsync();
         }
 
         public virtual async Task Delete(object id)
@@ -104,7 +99,6 @@ namespace Pawra.DAL.Repository
             if (entity != null)
             {
                 dbSet.Remove(entity);
-                await dbContext.SaveChangesAsync();
             }
         }
     }
