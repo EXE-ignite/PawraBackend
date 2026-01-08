@@ -5,89 +5,167 @@ using Pawra.BLL.Interfaces;
 
 namespace PawraBackend.Controllers
 {
+    /// <summary>
+    /// Controller quản lý Payment - kế thừa BaseController để tận dụng CRUD operations
+    /// </summary>
     [ApiController]
     [Route("api/[controller]")]
     [Authorize]
-    public class PaymentController : ControllerBase
+    public class PaymentController : BaseController<IPaymentService, PaymentDto>
     {
         private readonly IPaymentService _paymentService;
 
-        public PaymentController(IPaymentService paymentService)
+        public PaymentController(IPaymentService paymentService) : base(paymentService)
         {
             _paymentService = paymentService;
         }
 
-        [HttpGet]
+        /// <summary>
+        /// Lấy danh sách tất cả thanh toán
+        /// </summary>
+        [HttpGet("all")]
         public async Task<IActionResult> GetAll()
         {
             try
             {
                 var payments = await _paymentService.GetAllAsync();
-                return Ok(new { success = true, message = "Lấy danh sách thanh toán thành công", data = payments });
+                return Ok(new
+                {
+                    success = true,
+                    message = "Lấy danh sách thanh toán thành công",
+                    data = payments
+                });
             }
             catch (Exception ex)
             {
-                return BadRequest(new { success = false, message = ex.Message });
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message
+                });
             }
         }
 
+        /// <summary>
+        /// Lấy thông tin thanh toán theo ID - Override từ BaseController
+        /// </summary>
         [HttpGet("{id}")]
-        public async Task<IActionResult> GetById(Guid id)
+        public override async Task<IActionResult> Get(Guid id)
         {
             try
             {
                 var payment = await _paymentService.GetByIdAsync(id);
-                return Ok(new { success = true, message = "Lấy thông tin thanh toán thành công", data = payment });
+                return Ok(new
+                {
+                    success = true,
+                    message = "Lấy thông tin thanh toán thành công",
+                    data = payment
+                });
             }
             catch (Exception ex)
             {
-                return NotFound(new { success = false, message = ex.Message });
+                return NotFound(new
+                {
+                    success = false,
+                    message = ex.Message
+                });
             }
         }
 
-        [HttpPost]
+        /// <summary>
+        /// Tạo thanh toán mới - Sử dụng CreatePaymentDto
+        /// </summary>
+        [HttpPost("create")]
         public async Task<IActionResult> Create([FromBody] CreatePaymentDto dto)
         {
             try
             {
                 if (!ModelState.IsValid)
-                    return BadRequest(new { success = false, message = "Dữ liệu không hợp lệ", errors = ModelState });
+                {
+                    return BadRequest(new
+                    {
+                        success = false,
+                        message = "Dữ liệu không hợp lệ",
+                        errors = ModelState
+                    });
+                }
+
                 var payment = await _paymentService.CreateAsync(dto);
-                return CreatedAtAction(nameof(GetById), new { id = payment.Id }, new { success = true, message = "Tạo thanh toán thành công", data = payment });
+                return CreatedAtAction(nameof(Get), new { id = payment.Id }, new
+                {
+                    success = true,
+                    message = "Tạo thanh toán thành công",
+                    data = payment
+                });
             }
             catch (Exception ex)
             {
-                return BadRequest(new { success = false, message = ex.Message });
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message
+                });
             }
         }
 
-        [HttpPut("{id}")]
+        /// <summary>
+        /// Cập nhật thanh toán - Sử dụng UpdatePaymentDto
+        /// </summary>
+        [HttpPut("update/{id}")]
         public async Task<IActionResult> Update(Guid id, [FromBody] UpdatePaymentDto dto)
         {
             try
             {
                 if (!ModelState.IsValid)
-                    return BadRequest(new { success = false, message = "Dữ liệu không hợp lệ", errors = ModelState });
+                {
+                    return BadRequest(new
+                    {
+                        success = false,
+                        message = "Dữ liệu không hợp lệ",
+                        errors = ModelState
+                    });
+                }
+
                 var payment = await _paymentService.UpdateAsync(id, dto);
-                return Ok(new { success = true, message = "Cập nhật thanh toán thành công", data = payment });
+                return Ok(new
+                {
+                    success = true,
+                    message = "Cập nhật thanh toán thành công",
+                    data = payment
+                });
             }
             catch (Exception ex)
             {
-                return BadRequest(new { success = false, message = ex.Message });
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message
+                });
             }
         }
 
+        /// <summary>
+        /// Xóa thanh toán - Override từ BaseController
+        /// </summary>
         [HttpDelete("{id}")]
-        public async Task<IActionResult> Delete(Guid id)
+        public override async Task<IActionResult> Delete(Guid id)
         {
             try
             {
                 await _paymentService.DeleteAsync(id);
-                return Ok(new { success = true, message = "Xóa thanh toán thành công" });
+                return Ok(new
+                {
+                    success = true,
+                    message = "Xóa thanh toán thành công"
+                });
             }
             catch (Exception ex)
             {
-                return BadRequest(new { success = false, message = ex.Message });
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message
+                });
             }
         }
     }

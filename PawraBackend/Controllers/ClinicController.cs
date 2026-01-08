@@ -5,14 +5,17 @@ using Pawra.BLL.Interfaces;
 
 namespace PawraBackend.Controllers
 {
+    /// <summary>
+    /// Controller quản lý Clinic - kế thừa BaseController để tận dụng CRUD operations
+    /// </summary>
     [ApiController]
     [Route("api/[controller]")]
     [Authorize]
-    public class ClinicController : ControllerBase
+    public class ClinicController : BaseController<IClinicService, ClinicDto>
     {
         private readonly IClinicService _clinicService;
 
-        public ClinicController(IClinicService clinicService)
+        public ClinicController(IClinicService clinicService) : base(clinicService)
         {
             _clinicService = clinicService;
         }
@@ -20,7 +23,7 @@ namespace PawraBackend.Controllers
         /// <summary>
         /// Lấy danh sách tất cả các phòng khám
         /// </summary>
-        [HttpGet]
+        [HttpGet("all")]
         public async Task<IActionResult> GetAll()
         {
             try
@@ -44,10 +47,10 @@ namespace PawraBackend.Controllers
         }
 
         /// <summary>
-        /// Lấy thông tin phòng khám theo ID
+        /// Lấy thông tin phòng khám theo ID - Override từ BaseController
         /// </summary>
         [HttpGet("{id}")]
-        public async Task<IActionResult> GetById(Guid id)
+        public override async Task<IActionResult> Get(Guid id)
         {
             try
             {
@@ -70,9 +73,9 @@ namespace PawraBackend.Controllers
         }
 
         /// <summary>
-        /// Tạo phòng khám mới
+        /// Tạo phòng khám mới - Sử dụng CreateClinicDto
         /// </summary>
-        [HttpPost]
+        [HttpPost("create")]
         public async Task<IActionResult> Create([FromBody] CreateClinicDto dto)
         {
             try
@@ -88,7 +91,7 @@ namespace PawraBackend.Controllers
                 }
 
                 var clinic = await _clinicService.CreateAsync(dto);
-                return CreatedAtAction(nameof(GetById), new { id = clinic.Id }, new
+                return CreatedAtAction(nameof(Get), new { id = clinic.Id }, new
                 {
                     success = true,
                     message = "Tạo phòng khám thành công",
@@ -106,9 +109,9 @@ namespace PawraBackend.Controllers
         }
 
         /// <summary>
-        /// Cập nhật phòng khám
+        /// Cập nhật phòng khám - Sử dụng UpdateClinicDto
         /// </summary>
-        [HttpPut("{id}")]
+        [HttpPut("update/{id}")]
         public async Task<IActionResult> Update(Guid id, [FromBody] UpdateClinicDto dto)
         {
             try
@@ -142,14 +145,14 @@ namespace PawraBackend.Controllers
         }
 
         /// <summary>
-        /// Xóa phòng khám
+        /// Xóa phòng khám - Override từ BaseController
         /// </summary>
         [HttpDelete("{id}")]
-        public async Task<IActionResult> Delete(Guid id)
+        public override async Task<IActionResult> Delete(Guid id)
         {
             try
             {
-                var result = await _clinicService.DeleteAsync(id);
+                await _clinicService.DeleteAsync(id);
                 return Ok(new
                 {
                     success = true,

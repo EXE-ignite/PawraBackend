@@ -5,89 +5,167 @@ using Pawra.BLL.Interfaces;
 
 namespace PawraBackend.Controllers
 {
+    /// <summary>
+    /// Controller quản lý Pet - kế thừa BaseController để tận dụng CRUD operations
+    /// </summary>
     [ApiController]
     [Route("api/[controller]")]
     [Authorize]
-    public class PetController : ControllerBase
+    public class PetController : BaseController<IPetService, PetDto>
     {
         private readonly IPetService _petService;
 
-        public PetController(IPetService petService)
+        public PetController(IPetService petService) : base(petService)
         {
             _petService = petService;
         }
 
-        [HttpGet]
+        /// <summary>
+        /// Lấy danh sách tất cả thú cưng
+        /// </summary>
+        [HttpGet("all")]
         public async Task<IActionResult> GetAll()
         {
             try
             {
                 var pets = await _petService.GetAllAsync();
-                return Ok(new { success = true, message = "Lấy danh sách thú cưng thành công", data = pets });
+                return Ok(new
+                {
+                    success = true,
+                    message = "Lấy danh sách thú cưng thành công",
+                    data = pets
+                });
             }
             catch (Exception ex)
             {
-                return BadRequest(new { success = false, message = ex.Message });
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message
+                });
             }
         }
 
+        /// <summary>
+        /// Lấy thông tin thú cưng theo ID - Override từ BaseController
+        /// </summary>
         [HttpGet("{id}")]
-        public async Task<IActionResult> GetById(Guid id)
+        public override async Task<IActionResult> Get(Guid id)
         {
             try
             {
                 var pet = await _petService.GetByIdAsync(id);
-                return Ok(new { success = true, message = "Lấy thông tin thú cưng thành công", data = pet });
+                return Ok(new
+                {
+                    success = true,
+                    message = "Lấy thông tin thú cưng thành công",
+                    data = pet
+                });
             }
             catch (Exception ex)
             {
-                return NotFound(new { success = false, message = ex.Message });
+                return NotFound(new
+                {
+                    success = false,
+                    message = ex.Message
+                });
             }
         }
 
-        [HttpPost]
+        /// <summary>
+        /// Tạo thú cưng mới - Sử dụng CreatePetDto
+        /// </summary>
+        [HttpPost("create")]
         public async Task<IActionResult> Create([FromBody] CreatePetDto dto)
         {
             try
             {
                 if (!ModelState.IsValid)
-                    return BadRequest(new { success = false, message = "Dữ liệu không hợp lệ", errors = ModelState });
+                {
+                    return BadRequest(new
+                    {
+                        success = false,
+                        message = "Dữ liệu không hợp lệ",
+                        errors = ModelState
+                    });
+                }
+
                 var pet = await _petService.CreateAsync(dto);
-                return CreatedAtAction(nameof(GetById), new { id = pet.Id }, new { success = true, message = "Tạo thú cưng thành công", data = pet });
+                return CreatedAtAction(nameof(Get), new { id = pet.Id }, new
+                {
+                    success = true,
+                    message = "Tạo thú cưng thành công",
+                    data = pet
+                });
             }
             catch (Exception ex)
             {
-                return BadRequest(new { success = false, message = ex.Message });
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message
+                });
             }
         }
 
-        [HttpPut("{id}")]
+        /// <summary>
+        /// Cập nhật thú cưng - Sử dụng UpdatePetDto
+        /// </summary>
+        [HttpPut("update/{id}")]
         public async Task<IActionResult> Update(Guid id, [FromBody] UpdatePetDto dto)
         {
             try
             {
                 if (!ModelState.IsValid)
-                    return BadRequest(new { success = false, message = "Dữ liệu không hợp lệ", errors = ModelState });
+                {
+                    return BadRequest(new
+                    {
+                        success = false,
+                        message = "Dữ liệu không hợp lệ",
+                        errors = ModelState
+                    });
+                }
+
                 var pet = await _petService.UpdateAsync(id, dto);
-                return Ok(new { success = true, message = "Cập nhật thú cưng thành công", data = pet });
+                return Ok(new
+                {
+                    success = true,
+                    message = "Cập nhật thú cưng thành công",
+                    data = pet
+                });
             }
             catch (Exception ex)
             {
-                return BadRequest(new { success = false, message = ex.Message });
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message
+                });
             }
         }
 
+        /// <summary>
+        /// Xóa thú cưng - Override từ BaseController
+        /// </summary>
         [HttpDelete("{id}")]
-        public async Task<IActionResult> Delete(Guid id)
+        public override async Task<IActionResult> Delete(Guid id)
         {
             try
             {
                 await _petService.DeleteAsync(id);
-                return Ok(new { success = true, message = "Xóa thú cưng thành công" });
+                return Ok(new
+                {
+                    success = true,
+                    message = "Xóa thú cưng thành công"
+                });
             }
             catch (Exception ex)
             {
-                return BadRequest(new { success = false, message = ex.Message });
+                return BadRequest(new
+                {
+                    success = false,
+                    message = ex.Message
+                });
             }
         }
     }
